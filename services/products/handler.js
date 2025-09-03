@@ -1,17 +1,29 @@
-"use strict";
+'use strict'
 const {
   getProducts,
   createProduct,
   deleteProducts,
   updateProduct,
-} = require("./storage");
-const { response, getBody } = require(`${process.env['FILE_ENVIRONMENT']}common/utils`);
+} = require('./storage')
+const {
+  response,
+  getBody,
+} = require(`${process.env['FILE_ENVIRONMENT']}common/utils`)
 
-module.exports.create = async (event) => {
+module.exports.create = async event => {
   try {
-    const body = getBody(event);
-    const { empresa_id, codigo, serie, descripcion, categoria, estado, stock,precio } =
-      body;
+    const body = getBody(event)
+    const {
+      empresa_id,
+      codigo,
+      serie,
+      descripcion,
+      categoria,
+      estado,
+      stock,
+      precio,
+      proveedor_id,
+    } = body
 
     if (
       !empresa_id ||
@@ -22,7 +34,7 @@ module.exports.create = async (event) => {
       !estado ||
       !stock
     ) {
-      throw new Error("Missing required fields");
+      throw new Error('Missing required fields')
     }
 
     const product = await createProduct({
@@ -33,30 +45,31 @@ module.exports.create = async (event) => {
       categoria,
       estado,
       stock,
-      precio
-    });
-    return response(200, product, "Done");
+      precio,
+      proveedor_id,
+    })
+    return response(200, product, 'Done')
   } catch (error) {
-    const message = error.message || "Error";
-    console.log("error", error);
-    return response(400, null, message);
+    const message = error.message || 'Error'
+    console.log('error', error)
+    return response(400, null, message)
   }
-};
+}
 
-module.exports.read = async (event) => {
+module.exports.read = async event => {
   try {
+    const queryStringParameters = event.queryStringParameters || {}
     const {
-      queryStringParameters: {
-        product_id,
-        empresa_id,
-        codigo,
-        serie,
-        descripcion,
-        categoria,
-        estado,
-        stock,
-      },
-    } = event;
+      product_id,
+      empresa_id,
+      codigo,
+      serie,
+      descripcion,
+      categoria,
+      estado,
+      stock,
+      nombre_proveedor,
+    } = queryStringParameters
 
     const products = await getProducts({
       empresa_id,
@@ -67,18 +80,19 @@ module.exports.read = async (event) => {
       categoria,
       estado,
       stock,
-    });
-    return response(200, products, "Done");
+      nombre_proveedor,
+    })
+    return response(200, products, 'Done')
   } catch (error) {
-    const message = error.message || "Error";
-    console.log("error", error);
-    return response(400, null, message);
+    const message = error.message || 'Error'
+    console.log('error', error)
+    return response(400, null, message)
   }
-};
+}
 
-module.exports.update = async (event) => {
+module.exports.update = async event => {
   try {
-    const body = getBody(event);
+    const body = getBody(event)
     const {
       product_id,
       empresa_id,
@@ -88,7 +102,8 @@ module.exports.update = async (event) => {
       categoria,
       estado,
       stock,
-    } = body;
+      proveedor_id,
+    } = body
 
     if (
       !product_id ||
@@ -100,7 +115,7 @@ module.exports.update = async (event) => {
       // !estado ||
       // !stock
     ) {
-      throw new Error("Missing required fields");
+      throw new Error('Missing required fields')
     }
 
     const product = await updateProduct({
@@ -112,34 +127,35 @@ module.exports.update = async (event) => {
       categoria,
       estado,
       stock,
-    });
+      proveedor_id,
+    })
 
     if (product && product.length === 0) {
-      throw new Error("Product not found");
+      throw new Error('Product not found')
     }
 
-    return response(200, product, "Done");
+    return response(200, product, 'Done')
   } catch (error) {
-    const message = error.message || "Error";
-    console.log("error", error);
-    return response(400, null, message);
+    const message = error.message || 'Error'
+    console.log('error', error)
+    return response(400, null, message)
   }
-};
+}
 
-module.exports.delete = async (event) => {
+module.exports.delete = async event => {
   try {
-    const body = getBody(event);
-    const { product_ids } = body;
+    const body = getBody(event)
+    const { product_ids } = body
 
     if (!product_ids) {
-      throw new Error("Missing required fields");
+      throw new Error('Missing required fields')
     }
 
-    const products = await deleteProducts({ product_ids });
-    return response(200, products, "Done");
+    const products = await deleteProducts({ product_ids })
+    return response(200, products, 'Done')
   } catch (error) {
-    const message = error.message || "Error";
-    console.log("error", error);
-    return response(400, null, message);
+    const message = error.message || 'Error'
+    console.log('error', error)
+    return response(400, null, message)
   }
-};
+}

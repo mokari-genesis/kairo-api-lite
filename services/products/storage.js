@@ -13,21 +13,25 @@ const getProducts = fetchResultMysql(
       categoria,
       estado,
       stock,
+      nombre_proveedor,
     },
     connection
   ) =>
     connection.execute(
       `
-        SELECT * FROM productos
-        WHERE empresa_id = ?
-          AND (? IS NULL OR id = ?)  
-          AND (? IS NULL OR codigo = ?)
-          AND (? IS NULL OR serie = ?)
-          AND (? IS NULL OR descripcion LIKE CONCAT('%', ?, '%'))
-          AND (? IS NULL OR categoria = ?)
-          AND (? IS NULL OR estado = ?)
-          AND (? IS NULL OR stock = ?)
-          ORDER BY fecha_creacion DESC
+        SELECT p.*, pr.nombre as nombre_proveedor
+        FROM productos p
+        LEFT JOIN proveedores pr ON p.proveedor_id = pr.id
+        WHERE p.empresa_id = ?
+          AND (? IS NULL OR p.id = ?)  
+          AND (? IS NULL OR p.codigo = ?)
+          AND (? IS NULL OR p.serie = ?)
+          AND (? IS NULL OR p.descripcion LIKE CONCAT('%', ?, '%'))
+          AND (? IS NULL OR p.categoria = ?)
+          AND (? IS NULL OR p.estado = ?)
+          AND (? IS NULL OR p.stock = ?)
+          AND (? IS NULL OR pr.nombre LIKE CONCAT('%', ?, '%'))
+          ORDER BY p.fecha_creacion DESC
         `,
       [
         empresa_id,
@@ -45,6 +49,8 @@ const getProducts = fetchResultMysql(
         estado ?? null,
         stock ?? null,
         stock ?? null,
+        nombre_proveedor ?? null,
+        nombre_proveedor ?? null,
       ]
     )
 )
@@ -60,6 +66,7 @@ const createProduct = fetchResultMysql(
       estado = 'activo',
       stock = 0,
       precio = 0,
+      proveedor_id,
     },
     connection
   ) => {
@@ -73,13 +80,29 @@ const createProduct = fetchResultMysql(
         categoria,
         estado,
         stock,
-        precio
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        precio,
+        proveedor_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
-      [empresa_id, codigo, serie, descripcion, categoria, estado, stock, precio]
+      [
+        empresa_id,
+        codigo,
+        serie,
+        descripcion,
+        categoria,
+        estado,
+        stock,
+        precio,
+        proveedor_id,
+      ]
     )
     const [result] = await connection.execute(
-      'SELECT * FROM productos WHERE id = LAST_INSERT_ID()'
+      `
+      SELECT p.*, pr.nombre as nombre_proveedor
+      FROM productos p
+      LEFT JOIN proveedores pr ON p.proveedor_id = pr.id
+      WHERE p.id = LAST_INSERT_ID()
+      `
     )
     return result
   },
@@ -114,6 +137,7 @@ const updateProduct = fetchResultMysql(
       categoria,
       estado,
       stock,
+      proveedor_id,
     },
     connection
   ) => {
@@ -125,7 +149,8 @@ const updateProduct = fetchResultMysql(
     descripcion = ?,
     categoria = ?, 
     estado = ?, 
-    stock = ?
+    stock = ?,
+    proveedor_id = ?
     WHERE id = ? AND empresa_id = ?
     `,
       [
@@ -135,12 +160,18 @@ const updateProduct = fetchResultMysql(
         categoria,
         estado,
         stock,
+        proveedor_id,
         product_id,
         empresa_id,
       ]
     )
     const [result] = await connection.execute(
-      'SELECT * FROM productos WHERE id = ? AND empresa_id = ?',
+      `
+      SELECT p.*, pr.nombre as nombre_proveedor
+      FROM productos p
+      LEFT JOIN proveedores pr ON p.proveedor_id = pr.id
+      WHERE p.id = ? AND p.empresa_id = ?
+      `,
       [product_id, empresa_id]
     )
     return result

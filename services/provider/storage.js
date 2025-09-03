@@ -24,9 +24,11 @@ const createProvider = fetchResultMysql(
 )
 
 const getProviders = fetchResultMysql(
-  ({ nombre, nit, direccion, telefono, email, tipo, empresa_id }, connection) =>
-    connection.execute(
-      `
+  (
+    { nombre, nit, direccion, telefono, email, tipo, empresa_id, limit },
+    connection
+  ) => {
+    const baseQuery = `
       SELECT * FROM proveedores 
       WHERE (? IS NULL OR empresa_id = ?)
       AND (? IS NULL OR nombre LIKE CONCAT('%', ?, '%'))
@@ -35,24 +37,33 @@ const getProviders = fetchResultMysql(
       AND (? IS NULL OR telefono LIKE CONCAT('%', ?, '%'))
       AND (? IS NULL OR direccion LIKE CONCAT('%', ?, '%'))
       AND (? IS NULL OR tipo = ?)
-      `,
-      [
-        empresa_id || null,
-        empresa_id || null,
-        nombre || null,
-        nombre || null,
-        nit || null,
-        nit || null,
-        email || null,
-        email || null,
-        telefono || null,
-        telefono || null,
-        direccion || null,
-        direccion || null,
-        tipo || null,
-        tipo || null,
-      ]
-    ),
+      ORDER BY id DESC
+    `
+
+    const query = limit ? `${baseQuery} LIMIT ?` : baseQuery
+    const params = [
+      empresa_id || null,
+      empresa_id || null,
+      nombre || null,
+      nombre || null,
+      nit || null,
+      nit || null,
+      email || null,
+      email || null,
+      telefono || null,
+      telefono || null,
+      direccion || null,
+      direccion || null,
+      tipo || null,
+      tipo || null,
+    ]
+
+    if (limit) {
+      params.push(limit)
+    }
+
+    return connection.execute(query, params)
+  },
   { singleResult: false }
 )
 

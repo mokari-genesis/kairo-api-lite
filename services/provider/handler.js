@@ -47,7 +47,7 @@ module.exports.create = async event => {
 module.exports.read = async event => {
   try {
     const queryStringParameters = event.queryStringParameters || {}
-    const { nombre, nit, direccion, telefono, email, tipo, empresa_id } =
+    const { nombre, nit, direccion, telefono, email, tipo, empresa_id, limit } =
       queryStringParameters
 
     const providers = await getProviders({
@@ -58,6 +58,7 @@ module.exports.read = async event => {
       email,
       tipo,
       empresa_id,
+      limit,
     })
     return response(200, providers, 'Done')
   } catch (error) {
