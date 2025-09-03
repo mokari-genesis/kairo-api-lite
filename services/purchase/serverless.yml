@@ -1,0 +1,118 @@
+service: kairo-lite-api-sales
+frameworkVersion: '3'
+
+plugins:
+  - serverless-offline
+custom:
+  config: ../../envs/credentials.${self:provider.stage}.json
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'prod'}
+  region: us-east-1
+  environment:
+    STAGE: ${file(${self:custom.config}):stage}
+    FILE_ENVIRONMENT: ${file(${self:custom.config}):fileEnvironment}
+    RUN_LIKE: ${file(${self:custom.config}):run_like}
+    DATABASE_HOST: ${file(${self:custom.config}):dbHost}
+    DATABASE_USER: ${file(${self:custom.config}):dbUser}
+    DATABASE_NAME: ${file(${self:custom.config}):dbName}
+    DATABASE_PASSWORD: ${file(${self:custom.config}):dbPassword}
+    AWS_POOL_ID: ${file(${self:custom.config}):awsPoolId}
+
+package:
+  include:
+    - ../libs/**
+    - ../common/**
+  exclude:
+    - node_modules/**
+
+functions:
+  getPurchases:
+    handler: handler.read
+    timeout: 30
+    events:
+      - http:
+          path: purchase
+          method: get
+          cors: true
+    layers:
+      - arn:${file(${self:custom.config}):layer}
+
+  getPurchasesFlat:
+    handler: handler.readFlatSales
+    timeout: 30
+    events:
+      - http:
+          path: purchase/flat
+          method: get
+          cors: true
+    layers:
+      - arn:${file(${self:custom.config}):layer}
+
+  createPurchase:
+    handler: handler.create
+    timeout: 30
+    events:
+      - http:
+          path: purchase
+          method: post
+          cors: true
+    layers:
+      - arn:${file(${self:custom.config}):layer}
+
+  updatePurchase:
+    handler: handler.update
+    timeout: 30
+    events:
+      - http:
+          path: purchase
+          method: put
+          cors: true
+    layers:
+      - arn:${file(${self:custom.config}):layer}
+
+  cancelPurchase:
+    handler: handler.cancel
+    timeout: 30
+    events:
+      - http:
+          path: purchase
+          method: delete
+          cors: true
+    layers:
+      - arn:${file(${self:custom.config}):layer}
+
+  updateStatus:
+    handler: handler.updateStatus
+    timeout: 30
+    events:
+      - http:
+          path: purchase/status
+          method: put
+          cors: true
+    layers:
+      - arn:${file(${self:custom.config}):layer}
+
+  updateSale:
+    handler: handler.updateSale
+    timeout: 30
+    events:
+      - http:
+          path: purchase/sale
+          method: put
+          cors: true
+    layers:
+      - arn:${file(${self:custom.config}):layer}
+
+  removeSale:
+    handler: handler.removeSale
+    timeout: 30
+    events:
+      - http:
+          path: purchase/sale
+          method: delete
+          cors: true
+    layers:
+      - arn:${file(${self:custom.config}):layer}

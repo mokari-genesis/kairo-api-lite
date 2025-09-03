@@ -1,0 +1,65 @@
+const getBody = event => {
+    try {
+      return event.body
+        ? typeof event.body === 'string'
+          ? JSON.parse(event.body)
+          : event.body
+        : JSON.parse(event.Records[0].Sns.Message)
+    } catch (e) {
+      return {}
+    }
+  }
+
+const response = async (code, data, msg, msConn = null, pgConn = null) => {
+  if (pgConn) {
+    await pgConn.end()
+  }
+
+  return {
+    statusCode: code,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Credentials': true,
+    },
+    body: JSON.stringify(
+      {
+        data,
+        msg: msg || 'OK',
+        status: code >= 200 && code < 300 ? 'SUCCESS' : 'FAILURE',
+      },
+      null,
+      2
+    ),
+  }
+}
+
+const normalizeKeysToLowercase = input => {
+  input = input || {}
+  return Object.entries(input).reduce(
+    (acc, [key, value]) => ({ ...acc, [key.toLowerCase()]: value }),
+    {}
+  )
+}
+
+const getData = token =>
+  JSON.parse(
+    decodeURIComponent(
+      Buffer.from(token.replace(/-/g, '+').replace(/_/g, '/'), 'base64')
+        .toString()
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    )
+  )
+  
+const getUserEmailFromAuthorization = token =>
+  token ? getData(token.split('.')[1]).email.toLowerCase() : ''
+
+  module.exports = {
+    getBody,
+    response,
+    normalizeKeysToLowercase,
+    getUserEmailFromAuthorization
+  }
+
+  
