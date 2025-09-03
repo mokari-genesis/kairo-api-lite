@@ -4,7 +4,7 @@ const {
 
 const createProvider = fetchResultMysql(
   async (
-    { empresa_id, name, nit, email, phone, address, type },
+    { empresa_id, nombre, nit, email, telefono, direccion, tipo },
     connection
   ) => {
     await connection.execute(
@@ -13,7 +13,7 @@ const createProvider = fetchResultMysql(
         empresa_id, nombre, nit, email, telefono, direccion, tipo
       ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `,
-      [empresa_id, name, nit, email, phone, address, type]
+      [empresa_id, nombre, nit, email, telefono, direccion, tipo]
     )
     const [result] = await connection.execute(
       'SELECT * FROM proveedores WHERE id = LAST_INSERT_ID()'
@@ -24,7 +24,7 @@ const createProvider = fetchResultMysql(
 )
 
 const getProviders = fetchResultMysql(
-  ({ name, nit, email, phone, address, empresa_id, type }, connection) =>
+  ({ nombre, nit, direccion, telefono, email, tipo, empresa_id }, connection) =>
     connection.execute(
       `
       SELECT * FROM proveedores 
@@ -39,25 +39,25 @@ const getProviders = fetchResultMysql(
       [
         empresa_id || null,
         empresa_id || null,
-        name || null,
-        name || null,
+        nombre || null,
+        nombre || null,
         nit || null,
         nit || null,
         email || null,
         email || null,
-        phone || null,
-        phone || null,
-        address || null,
-        address || null,
-        type || null,
-        type || null,
+        telefono || null,
+        telefono || null,
+        direccion || null,
+        direccion || null,
+        tipo || null,
+        tipo || null,
       ]
     ),
   { singleResult: false }
 )
 
 const updateProvider = fetchResultMysql(
-  async ({ id, name, nit, email, phone, address, type }, connection) => {
+  async ({ id, nombre, nit, email, telefono, direccion, tipo }, connection) => {
     await connection.execute(
       `
       UPDATE proveedores
@@ -69,7 +69,7 @@ const updateProvider = fetchResultMysql(
           tipo = ?
       WHERE id = ?
       `,
-      [name, nit, email, phone, address, type, id]
+      [nombre, nit, email, telefono, direccion, tipo, id]
     )
     const [result] = await connection.execute(
       'SELECT * FROM proveedores WHERE id = ?',
