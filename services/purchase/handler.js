@@ -114,7 +114,7 @@ module.exports.create = async event => {
       throw new Error('Missing required fields')
     }
 
-    // Validar cada producto con fetchResultPg
+    // Validar cada producto con fetchResultMysql
     for (const item of detalle) {
       const result = await verificarStockDisponible({
         producto_id: item.producto_id,
@@ -311,7 +311,7 @@ module.exports.updateSale = async event => {
       })
     }
 
-    // Validar cada producto con fetchResultPg
+    // Validar cada producto con fetchResultMysql
     for (const item of detalles) {
       const result = await verificarStockDisponible({
         producto_id: item.producto_id,

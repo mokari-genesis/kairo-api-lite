@@ -1,0 +1,26 @@
+service: kairo-lite-layers
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'dev'}
+  region: us-east-1
+  profile: mokari-kairo
+
+custom:
+  config: ../envs/credentials.${self:provider.stage}.json
+
+layers:
+  nodejs:
+    name: cabisa-${self:provider.stage}-layer-nodejs
+    path: ../layers
+    compatibleRuntimes:
+      - nodejs20.x
+
+resources:
+  Outputs:
+    NodejsLayerExport:
+      Value:
+        Ref: NodejsLambdaLayer
+      Export:
+        Name: NodejsLambdaLayer

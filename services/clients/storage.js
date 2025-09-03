@@ -1,55 +1,87 @@
-const { fetchResultPg } = require(`${process.env['FILE_ENVIRONMENT']}common/db`)
+const {
+  fetchResultMysql,
+} = require(`${process.env['FILE_ENVIRONMENT']}common/db`)
 
-const getClients = fetchResultPg(
-  ({ name, email, phone, address, empresa_id, type, nit }, request) => {
-    return request.query(
+const getClients = fetchResultMysql(
+  ({ name, email, phone, address, empresa_id, type, nit }, connection) => {
+    // Convert undefined values to null for MySQL compatibility
+    const params = [
+      empresa_id || null,
+      empresa_id || null,
+      name || null,
+      name || null,
+      email || null,
+      email || null,
+      phone || null,
+      phone || null,
+      address || null,
+      address || null,
+      type || null,
+      type || null,
+      nit || null,
+      nit || null,
+    ]
+
+    return connection.execute(
       `SELECT * FROM clientes 
-    WHERE ($5::INT IS NULL OR empresa_id = $5)
-    AND ($1::TEXT IS NULL OR nombre ILIKE '%' || $1 || '%')
-    AND ($2::TEXT IS NULL OR email ILIKE '%' || $2 || '%')
-    AND ($3::TEXT IS NULL OR telefono ILIKE '%' || $3 || '%')
-    AND ($4::TEXT IS NULL OR direccion ILIKE '%' || $4 || '%')    
-    AND ($6::TEXT IS NULL OR tipo = $6)
-    AND ($7::TEXT IS NULL OR nit = $7)`,
-      [name, email, phone, address, empresa_id, type, nit]
+    WHERE (? IS NULL OR empresa_id = ?)
+    AND (? IS NULL OR nombre LIKE CONCAT('%', ?, '%'))
+    AND (? IS NULL OR email LIKE CONCAT('%', ?, '%'))
+    AND (? IS NULL OR telefono LIKE CONCAT('%', ?, '%'))
+    AND (? IS NULL OR direccion LIKE CONCAT('%', ?, '%'))    
+    AND (? IS NULL OR tipo = ?)
+    AND (? IS NULL OR nit = ?)`,
+      params
     )
   }
 )
 
-const createClient = fetchResultPg(
-  ({ empresa_id, name, type, nit, email, phone, address }, request) =>
-    request.query(
+const createClient = fetchResultMysql(
+  async (
+    { empresa_id, name, type, nit, email, phone, address },
+    connection
+  ) => {
+    await connection.execute(
       `
       INSERT INTO clientes (
         empresa_id, nombre, tipo, nit, email, telefono, direccion
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING *
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `,
       [empresa_id, name, type, nit, email, phone, address]
-    ),
+    )
+    const [result] = await connection.execute(
+      'SELECT * FROM clientes WHERE id = LAST_INSERT_ID()'
+    )
+    return result
+  },
   { singleResult: true }
 )
 
-const deleteClient = fetchResultPg(({ id }, request) => {
-  return request.query(`DELETE FROM clientes WHERE id = $1`, [id])
+const deleteClient = fetchResultMysql(({ id }, connection) => {
+  return connection.execute(`DELETE FROM clientes WHERE id = ?`, [id])
 })
 
-const updateClient = fetchResultPg(
-  ({ id, name, type, nit, email, phone, address }, request) =>
-    request.query(
+const updateClient = fetchResultMysql(
+  async ({ id, name, type, nit, email, phone, address }, connection) => {
+    await connection.execute(
       `
       UPDATE clientes
-      SET nombre = $2,
-          tipo = $3,
-          nit = $4,
-          email = $5,
-          telefono = $6,
-          direccion = $7
-      WHERE id = $1
-      RETURNING *
+      SET nombre = ?,
+          tipo = ?,
+          nit = ?,
+          email = ?,
+          telefono = ?,
+          direccion = ?
+      WHERE id = ?
       `,
-      [id, name, type, nit, email, phone, address]
-    ),
+      [name, type, nit, email, phone, address, id]
+    )
+    const [result] = await connection.execute(
+      'SELECT * FROM clientes WHERE id = ?',
+      [id]
+    )
+    return result
+  },
   { singleResult: true }
 )
 module.exports = {

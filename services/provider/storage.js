@@ -1,75 +1,115 @@
-const { fetchResultPg } = require(`${process.env['FILE_ENVIRONMENT']}common/db`)
+const {
+  fetchResultMysql,
+} = require(`${process.env['FILE_ENVIRONMENT']}common/db`)
 
-const createProvider = fetchResultPg(
-  ({ empresa_id, name, nit, email, phone, address, type }, request) =>
-    request.query(
+const createProvider = fetchResultMysql(
+  async (
+    { empresa_id, name, nit, email, phone, address, type },
+    connection
+  ) => {
+    await connection.execute(
       `
       INSERT INTO proveedores (
         empresa_id, nombre, nit, email, telefono, direccion, tipo
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING *
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `,
       [empresa_id, name, nit, email, phone, address, type]
-    ),
+    )
+    const [result] = await connection.execute(
+      'SELECT * FROM proveedores WHERE id = LAST_INSERT_ID()'
+    )
+    return result
+  },
   { singleResult: true }
-);
+)
 
-
-const getProviders = fetchResultPg(
-  ({ name, nit, email, phone, address, empresa_id, type }, request) =>
-    request.query(
+const getProviders = fetchResultMysql(
+  ({ name, nit, email, phone, address, empresa_id, type }, connection) =>
+    connection.execute(
       `
       SELECT * FROM proveedores 
-      WHERE ($6::INT IS NULL OR empresa_id = $6)
-      AND ($1::TEXT IS NULL OR nombre ILIKE '%' || $1 || '%')
-      AND ($2::TEXT IS NULL OR nit ILIKE '%' || $2 || '%')
-      AND ($3::TEXT IS NULL OR email ILIKE '%' || $3 || '%')
-      AND ($4::TEXT IS NULL OR telefono ILIKE '%' || $4 || '%')
-      AND ($5::TEXT IS NULL OR direccion ILIKE '%' || $5 || '%')
-      AND ($7::TEXT IS NULL OR tipo = $7)
+      WHERE (? IS NULL OR empresa_id = ?)
+      AND (? IS NULL OR nombre LIKE CONCAT('%', ?, '%'))
+      AND (? IS NULL OR nit LIKE CONCAT('%', ?, '%'))
+      AND (? IS NULL OR email LIKE CONCAT('%', ?, '%'))
+      AND (? IS NULL OR telefono LIKE CONCAT('%', ?, '%'))
+      AND (? IS NULL OR direccion LIKE CONCAT('%', ?, '%'))
+      AND (? IS NULL OR tipo = ?)
       `,
-      [name, nit, email, phone, address, empresa_id, type]
+      [
+        empresa_id || null,
+        empresa_id || null,
+        name || null,
+        name || null,
+        nit || null,
+        nit || null,
+        email || null,
+        email || null,
+        phone || null,
+        phone || null,
+        address || null,
+        address || null,
+        type || null,
+        type || null,
+      ]
     ),
   { singleResult: false }
-);
+)
 
-const updateProvider = fetchResultPg(
-  ({ id, name, nit, email, phone, address, type }, request) =>
-    request.query(
+const updateProvider = fetchResultMysql(
+  async ({ id, name, nit, email, phone, address, type }, connection) => {
+    await connection.execute(
       `
       UPDATE proveedores
-      SET nombre = $2,
-          nit = $3,
-          email = $4,
-          telefono = $5,
-          direccion = $6,
-          tipo = $7
-      WHERE id = $1
-      RETURNING *
+      SET nombre = ?,
+          nit = ?,
+          email = ?,
+          telefono = ?,
+          direccion = ?,
+          tipo = ?
+      WHERE id = ?
       `,
-      [id, name, nit, email, phone, address, type]
-    ),
+      [name, nit, email, phone, address, type, id]
+    )
+    const [result] = await connection.execute(
+      'SELECT * FROM proveedores WHERE id = ?',
+      [id]
+    )
+    return result
+  },
   { singleResult: true }
-);
+)
 
-const deleteProvider = fetchResultPg(
-  ({ id }, request) =>
-    request.query(
+const deleteProvider = fetchResultMysql(
+  async ({ id }, connection) => {
+    // First, get the record before deleting it
+    const [existingRecord] = await connection.execute(
+      'SELECT * FROM proveedores WHERE id = ?',
+      [id]
+    )
+
+    if (existingRecord.length === 0) {
+      throw new Error('Provider not found')
+    }
+
+    // Delete the record
+    await connection.execute(
       `
       DELETE FROM proveedores
-      WHERE id = $1
-      RETURNING *
+      WHERE id = ?
       `,
       [id]
-    ),
+    )
+
+    // Return the deleted record
+    return existingRecord
+  },
   { singleResult: true }
-);
-
-
+)
 
 module.exports = {
   createProvider,
   getProviders,
   updateProvider,
-  deleteProvider
-};
+  deleteProvider,
+}

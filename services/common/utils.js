@@ -1,18 +1,18 @@
 const getBody = event => {
-    try {
-      return event.body
-        ? typeof event.body === 'string'
-          ? JSON.parse(event.body)
-          : event.body
-        : JSON.parse(event.Records[0].Sns.Message)
-    } catch (e) {
-      return {}
-    }
+  try {
+    return event.body
+      ? typeof event.body === 'string'
+        ? JSON.parse(event.body)
+        : event.body
+      : JSON.parse(event.Records[0].Sns.Message)
+  } catch (e) {
+    return {}
   }
+}
 
-const response = async (code, data, msg, msConn = null, pgConn = null) => {
-  if (pgConn) {
-    await pgConn.end()
+const response = async (code, data, msg, msConn = null, mysqlConn = null) => {
+  if (mysqlConn) {
+    await mysqlConn.end()
   }
 
   return {
@@ -51,15 +51,13 @@ const getData = token =>
         .join('')
     )
   )
-  
+
 const getUserEmailFromAuthorization = token =>
   token ? getData(token.split('.')[1]).email.toLowerCase() : ''
 
-  module.exports = {
-    getBody,
-    response,
-    normalizeKeysToLowercase,
-    getUserEmailFromAuthorization
-  }
-
-  
+module.exports = {
+  getBody,
+  response,
+  normalizeKeysToLowercase,
+  getUserEmailFromAuthorization,
+}

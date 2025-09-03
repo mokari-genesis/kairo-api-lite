@@ -1,6 +1,8 @@
-const { fetchResultPg } = require(`${process.env['FILE_ENVIRONMENT']}common/db`)
+const {
+  fetchResultMysql,
+} = require(`${process.env['FILE_ENVIRONMENT']}common/db`)
 
-const getProducts = fetchResultPg(
+const getProducts = fetchResultMysql(
   (
     {
       empresa_id,
@@ -12,36 +14,43 @@ const getProducts = fetchResultPg(
       estado,
       stock,
     },
-    request
+    connection
   ) =>
-    request.query(
+    connection.execute(
       `
         SELECT * FROM productos
-        WHERE empresa_id = $1
-          AND ($2::INT IS NULL OR id = $2)  
-          AND ($3::TEXT IS NULL OR codigo = $3)
-          AND ($4::TEXT IS NULL OR serie = $4)
-          AND ($5::TEXT IS NULL OR descripcion ILIKE '%' || $5 || '%')
-          AND ($6::TEXT IS NULL OR categoria = $6)
-          AND ($7::TEXT IS NULL OR estado = $7)
-          AND ($8::INT IS NULL OR stock = $8)
+        WHERE empresa_id = ?
+          AND (? IS NULL OR id = ?)  
+          AND (? IS NULL OR codigo = ?)
+          AND (? IS NULL OR serie = ?)
+          AND (? IS NULL OR descripcion LIKE CONCAT('%', ?, '%'))
+          AND (? IS NULL OR categoria = ?)
+          AND (? IS NULL OR estado = ?)
+          AND (? IS NULL OR stock = ?)
           ORDER BY fecha_creacion DESC
         `,
       [
         empresa_id,
         product_id ?? null,
+        product_id ?? null,
+        codigo ?? null,
         codigo ?? null,
         serie ?? null,
+        serie ?? null,
+        descripcion ?? null,
         descripcion ?? null,
         categoria ?? null,
+        categoria ?? null,
         estado ?? null,
+        estado ?? null,
+        stock ?? null,
         stock ?? null,
       ]
     )
 )
 
-const createProduct = fetchResultPg(
-  (
+const createProduct = fetchResultMysql(
+  async (
     {
       empresa_id,
       codigo,
@@ -52,9 +61,9 @@ const createProduct = fetchResultPg(
       stock = 0,
       precio = 0,
     },
-    request
-  ) =>
-    request.query(
+    connection
+  ) => {
+    await connection.execute(
       `
       INSERT INTO productos (
         empresa_id,
@@ -65,28 +74,37 @@ const createProduct = fetchResultPg(
         estado,
         stock,
         precio
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING *
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [empresa_id, codigo, serie, descripcion, categoria, estado, stock, precio]
-    ),
+    )
+    const [result] = await connection.execute(
+      'SELECT * FROM productos WHERE id = LAST_INSERT_ID()'
+    )
+    return result
+  },
   { singleResult: true }
 )
 
-const deleteProducts = fetchResultPg(({ product_ids }, request) => {
+const deleteProducts = fetchResultMysql(async ({ product_ids }, connection) => {
   const ids = Array.isArray(product_ids) ? product_ids : [product_ids]
-  return request.query(
+  const placeholders = ids.map(() => '?').join(',')
+  await connection.execute(
     `
     DELETE FROM productos 
-    WHERE id = ANY($1::int[])
-    RETURNING *
+    WHERE id IN (${placeholders})
     `,
-    [ids]
+    ids
   )
+  const [result] = await connection.execute(
+    `SELECT * FROM productos WHERE id IN (${placeholders})`,
+    ids
+  )
+  return result
 })
 
-const updateProduct = fetchResultPg(
-  (
+const updateProduct = fetchResultMysql(
+  async (
     {
       product_id,
       empresa_id,
@@ -97,22 +115,20 @@ const updateProduct = fetchResultPg(
       estado,
       stock,
     },
-    request
+    connection
   ) => {
-    return request.query(
+    await connection.execute(
       `
     UPDATE productos 
-    SET codigo = $2, 
-    serie = $3, 
-    descripcion = $4,
-    categoria = $5, 
-    estado = $6, 
-    stock = $7
-    WHERE id = $8 AND empresa_id = $1
-    RETURNING *
-  `,
+    SET codigo = ?, 
+    serie = ?, 
+    descripcion = ?,
+    categoria = ?, 
+    estado = ?, 
+    stock = ?
+    WHERE id = ? AND empresa_id = ?
+    `,
       [
-        empresa_id,
         codigo,
         serie,
         descripcion,
@@ -120,8 +136,14 @@ const updateProduct = fetchResultPg(
         estado,
         stock,
         product_id,
+        empresa_id,
       ]
     )
+    const [result] = await connection.execute(
+      'SELECT * FROM productos WHERE id = ? AND empresa_id = ?',
+      [product_id, empresa_id]
+    )
+    return result
   }
 )
 

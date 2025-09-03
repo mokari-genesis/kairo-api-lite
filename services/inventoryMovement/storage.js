@@ -1,6 +1,8 @@
-const { fetchResultPg } = require(`${process.env['FILE_ENVIRONMENT']}common/db`)
+const {
+  fetchResultMysql,
+} = require(`${process.env['FILE_ENVIRONMENT']}common/db`)
 
-const getInventoryMovements = fetchResultPg(
+const getInventoryMovements = fetchResultMysql(
   (
     {
       codigo_producto,
@@ -12,83 +14,114 @@ const getInventoryMovements = fetchResultPg(
       fecha_inicio,
       fecha_fin,
     },
-    request
+    connection
   ) =>
-    request.query(
+    connection.execute(
       `
       SELECT * FROM reporte_movimientos_inventario
-      WHERE ($1::TEXT IS NULL OR codigo_producto ILIKE '%' || $1 || '%')
-        AND ($2::TEXT IS NULL OR usuario ILIKE '%' || $2 || '%')
-        AND ($3::TEXT IS NULL OR tipo_movimiento = $3)        
-        AND ($4::INT IS NULL OR cantidad = $4)
-        AND ($5::TEXT IS NULL OR comentario ILIKE '%' || $5 || '%')                
-        AND ($6::TEXT IS NULL OR producto ILIKE '%' || $6 || '%')
+      WHERE (? IS NULL OR codigo_producto LIKE CONCAT('%', ?, '%'))
+        AND (? IS NULL OR usuario LIKE CONCAT('%', ?, '%'))
+        AND (? IS NULL OR tipo_movimiento = ?)        
+        AND (? IS NULL OR cantidad = ?)
+        AND (? IS NULL OR comentario LIKE CONCAT('%', ?, '%'))                
+        AND (? IS NULL OR producto LIKE CONCAT('%', ?, '%'))
         AND (
-          ($7::DATE IS NULL AND $8::DATE IS NULL) 
+          (? IS NULL AND ? IS NULL) 
           OR 
-          (DATE(fecha) BETWEEN $7 AND $8)
+          (DATE(fecha) BETWEEN ? AND ?)
         )
-      ORDER BY fecha DESC
+      ORDER BY id DESC
       `,
       [
-        codigo_producto,
-        usuario,
-        tipo_movimiento,
-        cantidad,
-        comentario,
-        producto,
-        fecha_inicio,
-        fecha_fin,
+        codigo_producto || null,
+        codigo_producto || null,
+        usuario || null,
+        usuario || null,
+        tipo_movimiento || null,
+        tipo_movimiento || null,
+        cantidad || null,
+        cantidad || null,
+        comentario || null,
+        comentario || null,
+        producto || null,
+        producto || null,
+        fecha_inicio || null,
+        fecha_fin || null,
+        fecha_inicio || null,
+        fecha_fin || null,
       ]
     ),
   { singleResult: false }
 )
 
-const deleteInventoryMovement = fetchResultPg(
-  ({ id }, request) =>
-    request.query(
+const deleteInventoryMovement = fetchResultMysql(
+  async ({ id }, connection) => {
+    // First, get the record before deleting it
+    const [existingRecord] = await connection.execute(
+      'SELECT * FROM movimientos_inventario WHERE id = ?',
+      [id]
+    )
+
+    if (existingRecord.length === 0) {
+      throw new Error('Inventory movement not found')
+    }
+
+    // Delete the record
+    await connection.execute(
       `
       DELETE FROM movimientos_inventario
-      WHERE id = $1
-      RETURNING *
+      WHERE id = ?
       `,
       [id]
-    ),
+    )
+
+    // Return the deleted record
+    return existingRecord
+  },
   { singleResult: true }
 )
 
-const updateInventoryMovement = fetchResultPg(
-  ({ id, product_id, movement_type, quantity, comment }, request) =>
-    request.query(
+const updateInventoryMovement = fetchResultMysql(
+  async ({ id, product_id, movement_type, quantity, comment }, connection) => {
+    await connection.execute(
       `
       UPDATE movimientos_inventario
-      SET producto_id = $2,
-          tipo_movimiento = $3,
-          cantidad = $4,
-          comentario = $5,
+      SET producto_id = ?,
+          tipo_movimiento = ?,
+          cantidad = ?,
+          comentario = ?,
           fecha = NOW()
-      WHERE id = $1
-      RETURNING *
+      WHERE id = ?
       `,
-      [id, product_id, movement_type, quantity, comment]
-    ),
+      [product_id, movement_type, quantity, comment, id]
+    )
+    const [result] = await connection.execute(
+      'SELECT * FROM movimientos_inventario WHERE id = ?',
+      [id]
+    )
+    return result
+  },
   { singleResult: true }
 )
 
-const createInventoryMovement = fetchResultPg(
-  (
+const createInventoryMovement = fetchResultMysql(
+  async (
     { empresa_id, product_id, user_id, movement_type, quantity, comment },
-    request
-  ) =>
-    request.query(
+    connection
+  ) => {
+    await connection.execute(
       `
       INSERT INTO movimientos_inventario (
         empresa_id, producto_id, usuario_id, tipo_movimiento, cantidad, comentario
-      ) VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING *
+      ) VALUES (?, ?, ?, ?, ?, ?)
       `,
       [empresa_id, product_id, user_id, movement_type, quantity, comment]
-    ),
+    )
+    const [result] = await connection.execute(
+      'SELECT * FROM movimientos_inventario WHERE id = LAST_INSERT_ID()'
+    )
+    return result
+  },
   { singleResult: true }
 )
 

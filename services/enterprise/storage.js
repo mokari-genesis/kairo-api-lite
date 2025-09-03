@@ -1,65 +1,95 @@
-const { fetchResultPg } = require(`${process.env['FILE_ENVIRONMENT']}common/db`)
+const {
+  fetchResultMysql,
+} = require(`${process.env['FILE_ENVIRONMENT']}common/db`)
 
-const getEmpresas = fetchResultPg(
-  ({ nombre, nit, direccion, telefono, email }, request) =>
-    request.query(
+const getEmpresas = fetchResultMysql(
+  ({ nombre, nit, direccion, telefono, email }, connection) =>
+    connection.execute(
       `
         SELECT *
         FROM empresas
-        WHERE ($1::TEXT IS NULL OR nombre like '%' || $1 || '%')
-        AND ($2::TEXT IS NULL OR nit like '%' || $2 || '%')
-        AND ($3::TEXT IS NULL OR direccion like '%' || $3 || '%')
-        AND ($4::TEXT IS NULL OR telefono like '%' || $4 || '%')
-        AND ($5::TEXT IS NULL OR email like '%' || $5 || '%')
+        WHERE (? IS NULL OR nombre LIKE CONCAT('%', ?, '%'))
+        AND (? IS NULL OR nit LIKE CONCAT('%', ?, '%'))
+        AND (? IS NULL OR direccion LIKE CONCAT('%', ?, '%'))
+        AND (? IS NULL OR telefono LIKE CONCAT('%', ?, '%'))
+        AND (? IS NULL OR email LIKE CONCAT('%', ?, '%'))
         `,
       [
         nombre ?? null,
+        nombre ?? null,
+        nit ?? null,
         nit ?? null,
         direccion ?? null,
+        direccion ?? null,
         telefono ?? null,
+        telefono ?? null,
+        email ?? null,
         email ?? null,
       ]
     ),
   { singleResult: false }
-);
+)
 
-const createEmpresa = fetchResultPg(
-  ({ nombre, nit, direccion, telefono, email }, request) =>
-    request.query(
+const createEmpresa = fetchResultMysql(
+  async ({ nombre, nit, direccion, telefono, email }, connection) => {
+    await connection.execute(
       `
         INSERT INTO empresas (nombre, nit, direccion, telefono, email)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING *
+        VALUES (?, ?, ?, ?, ?)
         `,
       [nombre, nit, direccion, telefono, email]
-    ),
+    )
+    const [result] = await connection.execute(
+      'SELECT * FROM empresas WHERE id = LAST_INSERT_ID()'
+    )
+    return result
+  },
   { singleResult: true }
-);
+)
 
-const deleteEmpresa = fetchResultPg(
-  ({ id }, request) =>
-    request.query(`DELETE FROM empresas WHERE id = $1 RETURNING *`, [id]),
+const deleteEmpresa = fetchResultMysql(
+  async ({ id }, connection) => {
+    // First, get the record before deleting it
+    const [existingRecord] = await connection.execute(
+      'SELECT * FROM empresas WHERE id = ?',
+      [id]
+    )
+
+    if (existingRecord.length === 0) {
+      throw new Error('Empresa not found')
+    }
+
+    // Delete the record
+    await connection.execute(`DELETE FROM empresas WHERE id = ?`, [id])
+
+    // Return the deleted record
+    return existingRecord
+  },
   { singleResult: true }
-);
+)
 
-
-const updateEmpresa = fetchResultPg(
-  ({ id, nombre, nit, direccion, telefono, email }, request) =>
-    request.query(
+const updateEmpresa = fetchResultMysql(
+  async ({ id, nombre, nit, direccion, telefono, email }, connection) => {
+    await connection.execute(
       `
         UPDATE empresas
-        SET nombre = $2, nit = $3, direccion = $4, telefono = $5, email = $6
-        WHERE id = $1
-        RETURNING *
+        SET nombre = ?, nit = ?, direccion = ?, telefono = ?, email = ?
+        WHERE id = ?
         `,
-      [id, nombre, nit, direccion, telefono, email]
-    ),
+      [nombre, nit, direccion, telefono, email, id]
+    )
+    const [result] = await connection.execute(
+      'SELECT * FROM empresas WHERE id = ?',
+      [id]
+    )
+    return result
+  },
   { singleResult: true }
-);
+)
 
 module.exports = {
   createEmpresa,
   getEmpresas,
   deleteEmpresa,
   updateEmpresa,
-};
+}

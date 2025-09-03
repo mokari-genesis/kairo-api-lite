@@ -13,6 +13,6 @@
   "devDependencies": {
     "serverless-offline": "^14.3.4",
     "nodemon": "^2.0.22",
-    "pg": "^8.13.1"
+    "mysql2": "^3.6.5"
   }
 }

@@ -15,7 +15,7 @@
     "jsonwebtoken": "^9.0.2",
     "jwk-to-pem": "^2.0.6",
     "lambda-warmer": "^2.2.0",
-    "pg": "^8.13.1"
+    "mysql2": "^3.6.5"
   },
   "devDependencies": {
     "serverless-offline": "^14.3.4"

@@ -1,6 +1,8 @@
-const { fetchResultPg } = require(`${process.env['FILE_ENVIRONMENT']}common/db`)
+const {
+  fetchResultMysql,
+} = require(`${process.env['FILE_ENVIRONMENT']}common/db`)
 
-const getPurchases = fetchResultPg(
+const getPurchases = fetchResultMysql(
   (
     {
       empresa_id,
@@ -18,137 +20,176 @@ const getPurchases = fetchResultPg(
       fecha_inicio,
       fecha_fin,
     },
-    request
+    connection
   ) =>
-    request.query(
+    connection.execute(
       `
       SELECT *
       FROM vista_ventas_completas
-      WHERE ($1::INT IS NULL OR empresa_id = $1)
-        AND ($2::INT IS NULL OR id = $2)
-        AND ($3::TEXT IS NULL OR producto_codigo ILIKE '%' || $3 || '%')
-        AND ($4::TEXT IS NULL OR producto_descripcion ILIKE '%' || $4 || '%')
-        AND ($5::TEXT IS NULL OR producto_serie ILIKE '%' || $5 || '%')
-        AND ($6::TEXT IS NULL OR producto_categoria ILIKE '%' || $6 || '%')
-        AND ($7::TEXT IS NULL OR producto_estado = $7)
-        AND ($8::TEXT IS NULL OR cliente_nombre ILIKE '%' || $8 || '%')
-        AND ($9::TEXT IS NULL OR cliente_nit = $9)
-        AND ($10::TEXT IS NULL OR cliente_email ILIKE '%' || $10 || '%')
-        AND ($11::TEXT IS NULL OR usuario_nombre ILIKE '%' || $11 || '%')
-        AND ($12::TEXT IS NULL OR estado_venta = $12)
+      WHERE (? IS NULL OR empresa_id = ?)
+        AND (? IS NULL OR id = ?)
+        AND (? IS NULL OR producto_codigo LIKE CONCAT('%', ?, '%'))
+        AND (? IS NULL OR producto_descripcion LIKE CONCAT('%', ?, '%'))
+        AND (? IS NULL OR producto_serie LIKE CONCAT('%', ?, '%'))
+        AND (? IS NULL OR producto_categoria LIKE CONCAT('%', ?, '%'))
+        AND (? IS NULL OR producto_estado = ?)
+        AND (? IS NULL OR cliente_nombre LIKE CONCAT('%', ?, '%'))
+        AND (? IS NULL OR cliente_nit = ?)
+        AND (? IS NULL OR cliente_email LIKE CONCAT('%', ?, '%'))
+        AND (? IS NULL OR usuario_nombre LIKE CONCAT('%', ?, '%'))
+        AND (? IS NULL OR estado_venta = ?)
         AND (
-          ($13::DATE IS NULL AND $14::DATE IS NULL) 
+          (? IS NULL AND ? IS NULL) 
           OR 
-          (DATE(fecha_venta) BETWEEN $13 AND $14)          
+          (DATE(fecha_venta) BETWEEN ? AND ?)          
         )
       ORDER BY fecha_venta DESC
       `,
       [
-        empresa_id,
-        id,
-        producto_codigo,
-        producto_descripcion,
-        producto_serie,
-        producto_categoria,
-        producto_estado,
-        cliente_nombre,
-        cliente_nit,
-        cliente_email,
-        usuario_nombre,
-        estado_venta,
-        fecha_inicio,
-        fecha_fin,
+        empresa_id || null,
+        empresa_id || null,
+        id || null,
+        id || null,
+        producto_codigo || null,
+        producto_codigo || null,
+        producto_descripcion || null,
+        producto_descripcion || null,
+        producto_serie || null,
+        producto_serie || null,
+        producto_categoria || null,
+        producto_categoria || null,
+        producto_estado || null,
+        producto_estado || null,
+        cliente_nombre || null,
+        cliente_nombre || null,
+        cliente_nit || null,
+        cliente_nit || null,
+        cliente_email || null,
+        cliente_email || null,
+        usuario_nombre || null,
+        usuario_nombre || null,
+        estado_venta || null,
+        estado_venta || null,
+        fecha_inicio || null,
+        fecha_fin || null,
+        fecha_inicio || null,
+        fecha_fin || null,
       ]
     ),
   { singleResult: false }
 )
 
-const verificarStockDisponible = fetchResultPg(
-  ({ producto_id }, request) =>
-    request.query(
+const verificarStockDisponible = fetchResultMysql(
+  ({ producto_id }, connection) =>
+    connection.execute(
       `
-      SELECT stock, estado,descripcion
+      SELECT stock, estado, descripcion
       FROM productos
-      WHERE id = $1
+      WHERE id = ?
       `,
       [producto_id]
     ),
   { singleResult: true }
 )
 
-const createVenta = fetchResultPg(
-  (
+const createVenta = fetchResultMysql(
+  async (
     { empresa_id, cliente_id, usuario_id, total, estado = 'generado' },
-    request
-  ) =>
-    request.query(
+    connection
+  ) => {
+    await connection.execute(
       `
       INSERT INTO ventas (
         empresa_id, cliente_id, usuario_id, total, estado
-      ) VALUES ($1, $2, $3, $4, $5)
-      RETURNING *
+      ) VALUES (?, ?, ?, ?, ?)
       `,
       [empresa_id, cliente_id, usuario_id, total, estado]
-    ),
+    )
+    const [result] = await connection.execute(
+      'SELECT * FROM ventas WHERE id = LAST_INSERT_ID()'
+    )
+    return result
+  },
   { singleResult: true }
 )
 
-const createDetalleVenta = fetchResultPg(
-  ({ venta_id, producto_id, cantidad, precio_unitario, subtotal }, request) =>
-    request.query(
+const createDetalleVenta = fetchResultMysql(
+  async (
+    { venta_id, producto_id, cantidad, precio_unitario, subtotal },
+    connection
+  ) => {
+    await connection.execute(
       `
       INSERT INTO detalles_ventas (
         venta_id, producto_id, cantidad, precio_unitario, subtotal
-      ) VALUES ($1, $2, $3, $4, $5)
-      RETURNING *
+      ) VALUES (?, ?, ?, ?, ?)
       `,
       [venta_id, producto_id, cantidad, precio_unitario, subtotal]
-    ),
+    )
+    const [result] = await connection.execute(
+      'SELECT * FROM detalles_ventas WHERE id = LAST_INSERT_ID()'
+    )
+    return result
+  },
   { singleResult: true }
 )
 
-const deleteVenta = fetchResultPg(
-  ({ venta_id }, request) =>
-    request.query(`DELETE FROM ventas WHERE id = $1 RETURNING *`, [venta_id]),
+const deleteVenta = fetchResultMysql(
+  async ({ venta_id }, connection) => {
+    // First, get the record before deleting it
+    const [existingRecord] = await connection.execute(
+      'SELECT * FROM ventas WHERE id = ?',
+      [venta_id]
+    )
+
+    if (existingRecord.length === 0) {
+      throw new Error('Venta not found')
+    }
+
+    // Delete the record
+    await connection.execute(`DELETE FROM ventas WHERE id = ?`, [venta_id])
+
+    // Return the deleted record
+    return existingRecord
+  },
   { singleResult: true }
 )
 
-const updateVenta = fetchResultPg(
-  ({ venta_id, estado }, request) =>
-    request.query(
+const updateVenta = fetchResultMysql(
+  async ({ venta_id, estado }, connection) => {
+    await connection.execute(
       `
-      WITH venta_actual AS (
-        SELECT * FROM ventas WHERE id = $1::INTEGER
-      ),
-      nueva_venta AS (
-        INSERT INTO ventas (
-          empresa_id, cliente_id, usuario_id, total, estado
-        )
-        SELECT empresa_id, cliente_id, usuario_id, total, $2
-        FROM venta_actual
-        RETURNING *
+      INSERT INTO ventas (
+        empresa_id, cliente_id, usuario_id, total, estado
       )
-      SELECT * FROM nueva_venta
+      SELECT empresa_id, cliente_id, usuario_id, total, ?
+      FROM ventas
+      WHERE id = ?
       `,
-      [venta_id, estado]
-    ),
+      [estado, venta_id]
+    )
+    const [result] = await connection.execute(
+      'SELECT * FROM ventas WHERE id = LAST_INSERT_ID()'
+    )
+    return result
+  },
   { singleResult: true }
 )
 
-const replaceDetallesVenta = fetchResultPg(
-  async ({ venta_id, detalle }, request) => {
+const replaceDetallesVenta = fetchResultMysql(
+  async ({ venta_id, detalle }, connection) => {
     // Eliminar los detalles actuales
-    await request.query(`DELETE FROM detalles_ventas WHERE venta_id = $1`, [
+    await connection.execute(`DELETE FROM detalles_ventas WHERE venta_id = ?`, [
       venta_id,
     ])
 
     // Insertar los nuevos detalles
     for (const item of detalle) {
-      await request.query(
+      await connection.execute(
         `
         INSERT INTO detalles_ventas (
           venta_id, producto_id, cantidad, precio_unitario, subtotal
-        ) VALUES ($1, $2, $3, $4, $5)
+        ) VALUES (?, ?, ?, ?, ?)
         `,
         [
           venta_id,
@@ -165,35 +206,41 @@ const replaceDetallesVenta = fetchResultPg(
   { singleResult: true }
 )
 
-const getVentaById = fetchResultPg(
-  ({ venta_id }, request) =>
-    request.query(`SELECT * FROM ventas WHERE id = $1`, [venta_id]),
+const getVentaById = fetchResultMysql(
+  ({ venta_id }, connection) =>
+    connection.execute(`SELECT * FROM ventas WHERE id = ?`, [venta_id]),
   { singleResult: true }
 )
 
-const getDetallesVentaByVentaId = fetchResultPg(
-  ({ venta_id }, request) =>
-    request.query(`SELECT * FROM detalles_ventas WHERE venta_id = $1`, [
+const getDetallesVentaByVentaId = fetchResultMysql(
+  ({ venta_id }, connection) =>
+    connection.execute(`SELECT * FROM detalles_ventas WHERE venta_id = ?`, [
       venta_id,
     ]),
   { singleResult: false }
 )
 
-const cancelarVenta = fetchResultPg(
-  ({ venta_id }, request) =>
-    request.query(
-      `UPDATE ventas SET estado = 'cancelado' WHERE id = $1 RETURNING *`,
+const cancelarVenta = fetchResultMysql(
+  async ({ venta_id }, connection) => {
+    await connection.execute(
+      `UPDATE ventas SET estado = 'cancelado' WHERE id = ?`,
       [venta_id]
-    ),
+    )
+    const [result] = await connection.execute(
+      'SELECT * FROM ventas WHERE id = ?',
+      [venta_id]
+    )
+    return result
+  },
   { singleResult: true }
 )
 
-const crearMovimientoDevolucion = fetchResultPg(
-  (
+const crearMovimientoDevolucion = fetchResultMysql(
+  async (
     { empresa_id, producto_id, usuario_id, cantidad, comentario, referencia },
-    request
-  ) =>
-    request.query(
+    connection
+  ) => {
+    await connection.execute(
       `
       INSERT INTO movimientos_inventario (
         empresa_id,
@@ -203,15 +250,19 @@ const crearMovimientoDevolucion = fetchResultPg(
         cantidad,
         comentario,
         referencia
-      ) VALUES ($1, $2, $3, 'devolucion', $4, $5, $6)
-      RETURNING *
+      ) VALUES (?, ?, ?, 'devolucion', ?, ?, ?)
       `,
       [empresa_id, producto_id, usuario_id, cantidad, comentario, referencia]
-    ),
+    )
+    const [result] = await connection.execute(
+      'SELECT * FROM movimientos_inventario WHERE id = LAST_INSERT_ID()'
+    )
+    return result
+  },
   { singleResult: true }
 )
 
-const getPurchasesFlat = fetchResultPg(
+const getPurchasesFlat = fetchResultMysql(
   (
     {
       empresa_id,
@@ -223,136 +274,125 @@ const getPurchasesFlat = fetchResultPg(
       estado_venta,
       fecha_venta,
     },
-    request
+    connection
   ) =>
-    request.query(
+    connection.execute(
       `
       SELECT * FROM vista_ventas_detalle_anidado
-      WHERE ($1::INT IS NULL OR empresa_id = $1)
-        AND ($2::INT IS NULL OR id = $2)
-        AND ($3::TEXT IS NULL OR cliente_nombre ILIKE '%' || $3 || '%')
-        AND ($4::TEXT IS NULL OR cliente_nit = $4)
-        AND ($5::TEXT IS NULL OR cliente_email ILIKE '%' || $5 || '%')
-        AND ($6::TEXT IS NULL OR usuario_nombre ILIKE '%' || $6 || '%')
-        AND ($7::TEXT IS NULL OR estado_venta = $7)
-        AND ($8::DATE IS NULL OR DATE(fecha_venta) = $8)
+      WHERE (? IS NULL OR empresa_id = ?)
+        AND (? IS NULL OR id = ?)
+        AND (? IS NULL OR cliente_nombre LIKE CONCAT('%', ?, '%'))
+        AND (? IS NULL OR cliente_nit = ?)
+        AND (? IS NULL OR cliente_email LIKE CONCAT('%', ?, '%'))
+        AND (? IS NULL OR usuario_nombre LIKE CONCAT('%', ?, '%'))
+        AND (? IS NULL OR estado_venta = ?)
+        AND (? IS NULL OR DATE(fecha_venta) = ?)
       ORDER BY fecha_venta DESC
       `,
       [
-        empresa_id,
-        id,
-        cliente_nombre,
-        cliente_nit,
-        cliente_email,
-        usuario_nombre,
-        estado_venta,
-        fecha_venta,
+        empresa_id || null,
+        empresa_id || null,
+        id || null,
+        id || null,
+        cliente_nombre || null,
+        cliente_nombre || null,
+        cliente_nit || null,
+        cliente_nit || null,
+        cliente_email || null,
+        cliente_email || null,
+        usuario_nombre || null,
+        usuario_nombre || null,
+        estado_venta || null,
+        estado_venta || null,
+        fecha_venta || null,
+        fecha_venta || null,
       ]
     ),
   { singleResult: false }
 )
 
-const copiarDetallesVenta = fetchResultPg(
-  ({ venta_id_original, venta_id_nueva }, request) =>
-    request.query(
+const copiarDetallesVenta = fetchResultMysql(
+  ({ venta_id_original, venta_id_nueva }, connection) =>
+    connection.execute(
       `
       INSERT INTO detalles_ventas (
         venta_id, producto_id, cantidad, precio_unitario, subtotal
       )
-      SELECT $2::INTEGER, producto_id, cantidad, precio_unitario, subtotal
+      SELECT ?, producto_id, cantidad, precio_unitario, subtotal
       FROM detalles_ventas
-      WHERE venta_id = $1::INTEGER
-      RETURNING *
+      WHERE venta_id = ?
       `,
-      [venta_id_original, venta_id_nueva]
+      [venta_id_nueva, venta_id_original]
     ),
   { singleResult: false }
 )
 
-const updateVentaStatus = fetchResultPg(
-  ({ venta_id, estado }, request) =>
-    request.query(
+const updateVentaStatus = fetchResultMysql(
+  async ({ venta_id, estado }, connection) => {
+    await connection.execute(
       `
         UPDATE ventas
-        SET estado = $2         
-        WHERE id = $1
-        RETURNING *
+        SET estado = ?         
+        WHERE id = ?
         `,
-      [venta_id, estado]
-    ),
+      [estado, venta_id]
+    )
+    const [result] = await connection.execute(
+      'SELECT * FROM ventas WHERE id = ?',
+      [venta_id]
+    )
+    return result
+  },
   { singleResult: true }
 )
 
-const updateSale = fetchResultPg(
-  (
+const updateSale = fetchResultMysql(
+  async (
     { venta_id, empresa_id, cliente_id, usuario_id, total, estado, detalle },
-    request
-  ) =>
-    request.query(
+    connection
+  ) => {
+    await connection.execute(
       `
-      WITH updated_venta AS (
-        UPDATE ventas
-        SET empresa_id = $2,
-            cliente_id = $3,
-            usuario_id = $4,
-            total = $5,
-            estado = $6
-        WHERE id = $1
-        RETURNING *
-      ),
-      existing_details AS (
-        SELECT id, producto_id, cantidad, precio_unitario, subtotal
-        FROM detalles_ventas
-        WHERE venta_id = $1
-      ),
-      updated_details AS (
-        UPDATE detalles_ventas dv
-        SET producto_id = d.producto_id,
-            cantidad = d.cantidad,
-            precio_unitario = d.precio_unitario,
-            subtotal = d.subtotal
-        FROM unnest($7::INT[], $8::INT[], $9::DECIMAL[], $10::DECIMAL[]) AS d(producto_id, cantidad, precio_unitario, subtotal)
-        WHERE dv.venta_id = $1
-        AND dv.id = ANY($11::INT[])
-        RETURNING dv.*
-      ),
-      new_details AS (
+      UPDATE ventas
+      SET empresa_id = ?,
+          cliente_id = ?,
+          usuario_id = ?,
+          total = ?,
+          estado = ?
+      WHERE id = ?
+      `,
+      [empresa_id, cliente_id, usuario_id, total, estado, venta_id]
+    )
+
+    // Delete existing details
+    await connection.execute(`DELETE FROM detalles_ventas WHERE venta_id = ?`, [
+      venta_id,
+    ])
+
+    // Insert new details
+    for (const item of detalle) {
+      await connection.execute(
+        `
         INSERT INTO detalles_ventas (
           venta_id, producto_id, cantidad, precio_unitario, subtotal
-        )
-        SELECT $1, d.producto_id, d.cantidad, d.precio_unitario, d.subtotal
-        FROM unnest($7::INT[], $8::INT[], $9::DECIMAL[], $10::DECIMAL[]) AS d(producto_id, cantidad, precio_unitario, subtotal)
-        WHERE NOT EXISTS (
-          SELECT 1 FROM detalles_ventas dv 
-          WHERE dv.venta_id = $1 
-          AND dv.id = ANY($11::INT[])
-        )
-        RETURNING *
-      ),
-      deleted_details AS (
-        DELETE FROM detalles_ventas
-        WHERE venta_id = $1
-        AND id NOT IN (
-          SELECT unnest($11::INT[])
-        )
-        RETURNING *
+        ) VALUES (?, ?, ?, ?, ?)
+        `,
+        [
+          venta_id,
+          item.producto_id,
+          item.cantidad,
+          item.precio_unitario,
+          item.subtotal,
+        ]
       )
-      SELECT * FROM updated_venta
-      `,
-      [
-        venta_id,
-        empresa_id,
-        cliente_id,
-        usuario_id,
-        total,
-        estado,
-        detalle.map(item => item.producto_id),
-        detalle.map(item => item.cantidad),
-        detalle.map(item => item.precio_unitario),
-        detalle.map(item => item.subtotal),
-        detalle.map(item => item.id || null), // IDs de los detalles existentes
-      ]
-    ),
+    }
+
+    const [result] = await connection.execute(
+      'SELECT * FROM ventas WHERE id = ?',
+      [venta_id]
+    )
+    return result
+  },
   { singleResult: true }
 )
 

@@ -127,12 +127,15 @@ module.exports.delete = async event => {
     if (!id) {
       throw new Error('Missing required fields')
     }
+    console.log('🔍 inventoryMovement ID:', id)
 
     const inventoryMovement = await deleteInventoryMovement({ id })
-    return response(200, inventoryMovement, 'Done')
+
+    console.log('🔍 inventoryMovement:', inventoryMovement)
+    return response(200, null, 'Done')
   } catch (error) {
     const message = error.message || 'Error'
-    console.log('error', error)
+    console.log('error ❌', error)
     return response(400, null, message)
   }
 }
