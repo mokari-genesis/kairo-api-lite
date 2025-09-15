@@ -3,14 +3,15 @@ const {
 } = require(`${process.env['FILE_ENVIRONMENT']}common/db`)
 
 const getMetodosPago = fetchResultMysql(
-  ({ activo }, connection) =>
+  ({ activo, nombre }, connection) =>
     connection.execute(
       `
       SELECT * FROM metodos_pago
       WHERE (? IS NULL OR activo = ?)
+      AND (? IS NULL OR nombre LIKE CONCAT('%', ?, '%'))
       ORDER BY nombre ASC
       `,
-      [activo || null, activo || null]
+      [activo || null, activo || null, nombre || null, nombre || null]
     ),
   { singleResult: false }
 )

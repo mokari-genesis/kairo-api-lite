@@ -17,8 +17,10 @@ const getPurchases = fetchResultMysql(
       cliente_email,
       usuario_nombre,
       estado_venta,
+      tipo_precio_aplicado,
       fecha_inicio,
       fecha_fin,
+      metodo_pago,
     },
     connection
   ) =>
@@ -38,11 +40,13 @@ const getPurchases = fetchResultMysql(
         AND (? IS NULL OR cliente_email LIKE CONCAT('%', ?, '%'))
         AND (? IS NULL OR usuario_nombre LIKE CONCAT('%', ?, '%'))
         AND (? IS NULL OR estado_venta = ?)
+        AND (? IS NULL OR tipo_precio_aplicado = ?)        
         AND (
           (? IS NULL AND ? IS NULL) 
           OR 
           (DATE(fecha_venta) BETWEEN ? AND ?)          
         )
+          AND (? IS NULL OR metodo_pago = ?)        
       ORDER BY fecha_venta DESC
       `,
       [
@@ -70,10 +74,14 @@ const getPurchases = fetchResultMysql(
         usuario_nombre || null,
         estado_venta || null,
         estado_venta || null,
+        tipo_precio_aplicado || null,
+        tipo_precio_aplicado || null,
         fecha_inicio || null,
         fecha_fin || null,
         fecha_inicio || null,
         fecha_fin || null,
+        metodo_pago || null,
+        metodo_pago || null,
       ]
     ),
   { singleResult: false }

@@ -36,8 +36,10 @@ module.exports.read = async event => {
         cliente_email,
         usuario_nombre,
         estado_venta,
+        tipo_precio_aplicado,
         fecha_inicio,
         fecha_fin,
+        metodo_pago,
       },
     } = event
 
@@ -54,8 +56,10 @@ module.exports.read = async event => {
       cliente_email,
       usuario_nombre,
       estado_venta,
+      tipo_precio_aplicado,
       fecha_inicio,
       fecha_fin,
+      metodo_pago,
     })
     return response(200, purchases, 'Done')
   } catch (error) {

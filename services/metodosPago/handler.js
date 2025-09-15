@@ -34,9 +34,9 @@ module.exports.create = async event => {
 module.exports.read = async event => {
   try {
     const queryStringParameters = event.queryStringParameters || {}
-    const { activo } = queryStringParameters
+    const { activo, nombre } = queryStringParameters
 
-    const metodosPago = await getMetodosPago({ activo })
+    const metodosPago = await getMetodosPago({ activo, nombre })
     return response(200, metodosPago, 'Done')
   } catch (error) {
     const message = error.message || 'Error'
