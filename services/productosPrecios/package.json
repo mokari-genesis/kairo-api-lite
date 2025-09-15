@@ -1,0 +1,24 @@
+{
+  "name": "productos-precios",
+  "version": "1.0.0",
+  "description": "Productos precios service",
+  "main": "handler.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "deploy-prod": "export AWS_PROFILE=mokari-kairo && sls deploy",
+    "local": "sls offline"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.687.0",
+    "jsonwebtoken": "^9.0.2",
+    "jwk-to-pem": "^2.0.6",
+    "lambda-warmer": "^2.2.0",
+    "mysql2": "^3.6.5"
+  },
+  "devDependencies": {
+    "serverless-offline": "^14.3.4",
+    "nodemon": "^2.0.22"
+  }
+}

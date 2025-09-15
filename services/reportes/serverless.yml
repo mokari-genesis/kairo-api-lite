@@ -1,0 +1,60 @@
+service: kairo-lite-api-reportes
+frameworkVersion: '3'
+
+plugins:
+  - serverless-offline
+custom:
+  config: ../../envs/credentials.${self:provider.stage}.json
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'prod'}
+  region: ${opt:region, 'us-east-1'}
+  environment:
+    STAGE: ${file(${self:custom.config}):stage}
+    FILE_ENVIRONMENT: ${file(${self:custom.config}):fileEnvironment}
+    RUN_LIKE: ${file(${self:custom.config}):run_like}
+    DATABASE_HOST: ${file(${self:custom.config}):dbHost}
+    DATABASE_USER: ${file(${self:custom.config}):dbUser}
+    DATABASE_NAME: ${file(${self:custom.config}):dbName}
+    DATABASE_PASSWORD: ${file(${self:custom.config}):dbPassword}
+    AWS_POOL_ID: ${file(${self:custom.config}):awsPoolId}
+
+package:
+  include:
+    - ../libs/**
+    - ../common/**
+  exclude:
+    - node_modules/**
+
+functions:
+  reporteInventarioConMetodo:
+    handler: handler.reporteInventarioConMetodo
+    events:
+      - http:
+          path: reportes/inventario-con-metodo
+          method: get
+          cors: true
+    layers:
+      - arn:${file(${self:custom.config}):layer}
+
+  reporteMovimientosInventario:
+    handler: handler.reporteMovimientosInventario
+    events:
+      - http:
+          path: reportes/movimientos-inventario
+          method: get
+          cors: true
+    layers:
+      - arn:${file(${self:custom.config}):layer}
+
+  reporteStockActual:
+    handler: handler.reporteStockActual
+    events:
+      - http:
+          path: reportes/stock-actual
+          method: get
+          cors: true
+    layers:
+      - arn:${file(${self:custom.config}):layer}

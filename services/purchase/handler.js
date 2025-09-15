@@ -101,7 +101,18 @@ module.exports.readFlatSales = async event => {
 module.exports.create = async event => {
   try {
     const body = getBody(event)
-    const { empresa_id, cliente_id, usuario_id, total, estado, detalle } = body
+    const {
+      empresa_id,
+      cliente_id,
+      usuario_id,
+      total,
+      estado,
+      detalle,
+      metodo_pago_id,
+      moneda_id,
+      moneda,
+      referencia_pago,
+    } = body
 
     if (
       !empresa_id ||
@@ -112,6 +123,13 @@ module.exports.create = async event => {
       !detalle
     ) {
       throw new Error('Missing required fields')
+    }
+
+    // Validar que si el estado es 'vendido', se requieren método de pago y moneda
+    if (estado === 'vendido' && (!metodo_pago_id || !moneda_id)) {
+      throw new Error(
+        'Para ventas en estado "vendido" se requiere metodo_pago_id y moneda_id'
+      )
     }
 
     // Validar cada producto con fetchResultMysql
@@ -144,6 +162,10 @@ module.exports.create = async event => {
       usuario_id,
       total,
       estado,
+      metodo_pago_id,
+      moneda_id,
+      moneda,
+      referencia_pago,
     })
 
     // Insertar detalles
@@ -154,6 +176,7 @@ module.exports.create = async event => {
         cantidad: item.cantidad,
         precio_unitario: item.precio_unitario,
         subtotal: item.subtotal,
+        tipo_precio_aplicado: item.tipo_precio_aplicado,
       })
     }
 
@@ -167,7 +190,14 @@ module.exports.create = async event => {
 module.exports.update = async event => {
   try {
     const body = getBody(event)
-    const { venta_id, estado } = body
+    const {
+      venta_id,
+      estado,
+      metodo_pago_id,
+      moneda_id,
+      moneda,
+      referencia_pago,
+    } = body
 
     if (!venta_id || !estado) {
       throw new Error('Missing required fields')
@@ -177,6 +207,13 @@ module.exports.update = async event => {
       throw new Error('Estado no válido')
     }
 
+    // Validar que si el estado es 'vendido', se requieren método de pago y moneda
+    if (estado === 'vendido' && (!metodo_pago_id || !moneda_id)) {
+      throw new Error(
+        'Para ventas en estado "vendido" se requiere metodo_pago_id y moneda_id'
+      )
+    }
+
     // Verificar que la venta existe
     const ventaActual = await getVentaById({ venta_id })
     if (!ventaActual) {
@@ -184,7 +221,14 @@ module.exports.update = async event => {
     }
 
     // Crear nueva venta
-    const nuevaVenta = await updateVenta({ venta_id, estado })
+    const nuevaVenta = await updateVenta({
+      venta_id,
+      estado,
+      metodo_pago_id,
+      moneda_id,
+      moneda,
+      referencia_pago,
+    })
 
     // Copiar detalles de la venta
     await copiarDetallesVenta({
@@ -272,6 +316,10 @@ module.exports.updateSale = async event => {
       total,
       estado,
       detalle,
+      metodo_pago_id,
+      moneda_id,
+      moneda,
+      referencia_pago,
     } = body
 
     if (
@@ -284,6 +332,13 @@ module.exports.updateSale = async event => {
       !detalle
     ) {
       throw new Error('Missing required fields')
+    }
+
+    // Validar que si el estado es 'vendido', se requieren método de pago y moneda
+    if (estado === 'vendido' && (!metodo_pago_id || !moneda_id)) {
+      throw new Error(
+        'Para ventas en estado "vendido" se requiere metodo_pago_id y moneda_id'
+      )
     }
 
     // Verify the sale exists
@@ -344,6 +399,10 @@ module.exports.updateSale = async event => {
       usuario_id,
       total,
       estado,
+      metodo_pago_id,
+      moneda_id,
+      moneda,
+      referencia_pago,
     })
 
     // Insertar detalles
@@ -354,6 +413,7 @@ module.exports.updateSale = async event => {
         cantidad: item.cantidad,
         precio_unitario: item.precio_unitario,
         subtotal: item.subtotal,
+        tipo_precio_aplicado: item.tipo_precio_aplicado,
       })
     }
 
