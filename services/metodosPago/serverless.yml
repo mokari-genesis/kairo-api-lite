@@ -1,4 +1,4 @@
-service: kairo-lite-api-products
+service: kairo-lite-api-metodos-pago
 frameworkVersion: '3'
 
 plugins:
@@ -10,7 +10,7 @@ provider:
   name: aws
   runtime: nodejs20.x
   stage: ${opt:stage, 'prod'}
-  region: us-east-1
+  region: ${opt:region, 'us-east-1'}
   environment:
     STAGE: ${file(${self:custom.config}):stage}
     FILE_ENVIRONMENT: ${file(${self:custom.config}):fileEnvironment}
@@ -29,89 +29,41 @@ package:
     - node_modules/**
 
 functions:
-  getProducts:
-    handler: handler.read
-    timeout: 30
-    events:
-      - http:
-          path: products
-          method: get
-          cors: true
-    layers:
-      - arn:${file(${self:custom.config}):layer}
-
-  createProduct:
+  create:
     handler: handler.create
-    timeout: 30
     events:
       - http:
-          path: products
+          path: metodos-pago
           method: post
           cors: true
     layers:
       - arn:${file(${self:custom.config}):layer}
 
-  deleteProducts:
-    handler: handler.delete
-    timeout: 30
+  read:
+    handler: handler.read
     events:
       - http:
-          path: products
-          method: delete
-          cors: true
-    layers:
-      - arn:${file(${self:custom.config}):layer}
-
-  updateProduct:
-    handler: handler.update
-    timeout: 30
-    events:
-      - http:
-          path: products
-          method: put
-          cors: true
-    layers:
-      - arn:${file(${self:custom.config}):layer}
-
-  createPrecio:
-    handler: handler.createPrecio
-    timeout: 30
-    events:
-      - http:
-          path: products/precios
-          method: post
-          cors: true
-    layers:
-      - arn:${file(${self:custom.config}):layer}
-
-  readPrecios:
-    handler: handler.readPrecios
-    timeout: 30
-    events:
-      - http:
-          path: products/precios
+          path: metodos-pago
           method: get
           cors: true
     layers:
       - arn:${file(${self:custom.config}):layer}
 
-  updatePrecio:
-    handler: handler.updatePrecio
-    timeout: 30
+  update:
+    handler: handler.update
     events:
       - http:
-          path: products/precios
+          path: metodos-pago
           method: put
           cors: true
     layers:
       - arn:${file(${self:custom.config}):layer}
 
-  deletePrecio:
-    handler: handler.deletePrecio
-    timeout: 30
+  delete:
+    handler: handler.delete
     events:
       - http:
-          path: products/precios
+          path: metodos-pago
           method: delete
           cors: true
     layers:

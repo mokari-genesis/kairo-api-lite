@@ -17,8 +17,10 @@ const getPurchases = fetchResultMysql(
       cliente_email,
       usuario_nombre,
       estado_venta,
+      tipo_precio_aplicado,
       fecha_inicio,
       fecha_fin,
+      metodo_pago,
     },
     connection
   ) =>
@@ -38,11 +40,13 @@ const getPurchases = fetchResultMysql(
         AND (? IS NULL OR cliente_email LIKE CONCAT('%', ?, '%'))
         AND (? IS NULL OR usuario_nombre LIKE CONCAT('%', ?, '%'))
         AND (? IS NULL OR estado_venta = ?)
+        AND (? IS NULL OR tipo_precio_aplicado = ?)        
         AND (
           (? IS NULL AND ? IS NULL) 
           OR 
           (DATE(fecha_venta) BETWEEN ? AND ?)          
         )
+          AND (? IS NULL OR metodo_pago = ?)        
       ORDER BY fecha_venta DESC
       `,
       [
@@ -70,10 +74,14 @@ const getPurchases = fetchResultMysql(
         usuario_nombre || null,
         estado_venta || null,
         estado_venta || null,
+        tipo_precio_aplicado || null,
+        tipo_precio_aplicado || null,
         fecha_inicio || null,
         fecha_fin || null,
         fecha_inicio || null,
         fecha_fin || null,
+        metodo_pago || null,
+        metodo_pago || null,
       ]
     ),
   { singleResult: false }
@@ -94,16 +102,36 @@ const verificarStockDisponible = fetchResultMysql(
 
 const createVenta = fetchResultMysql(
   async (
-    { empresa_id, cliente_id, usuario_id, total, estado = 'generado' },
+    {
+      empresa_id,
+      cliente_id,
+      usuario_id,
+      total,
+      estado = 'generado',
+      metodo_pago_id,
+      moneda_id,
+      moneda,
+      referencia_pago,
+    },
     connection
   ) => {
     await connection.execute(
       `
       INSERT INTO ventas (
-        empresa_id, cliente_id, usuario_id, total, estado
-      ) VALUES (?, ?, ?, ?, ?)
+        empresa_id, cliente_id, usuario_id, total, estado, metodo_pago_id, moneda_id, moneda, referencia_pago
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
-      [empresa_id, cliente_id, usuario_id, total, estado]
+      [
+        empresa_id,
+        cliente_id,
+        usuario_id,
+        total,
+        estado,
+        metodo_pago_id,
+        moneda_id,
+        moneda,
+        referencia_pago,
+      ]
     )
     const [result] = await connection.execute(
       'SELECT * FROM ventas WHERE id = LAST_INSERT_ID()'
@@ -115,16 +143,30 @@ const createVenta = fetchResultMysql(
 
 const createDetalleVenta = fetchResultMysql(
   async (
-    { venta_id, producto_id, cantidad, precio_unitario, subtotal },
+    {
+      venta_id,
+      producto_id,
+      cantidad,
+      precio_unitario,
+      subtotal,
+      tipo_precio_aplicado,
+    },
     connection
   ) => {
     await connection.execute(
       `
       INSERT INTO detalles_ventas (
-        venta_id, producto_id, cantidad, precio_unitario, subtotal
-      ) VALUES (?, ?, ?, ?, ?)
+        venta_id, producto_id, cantidad, precio_unitario, subtotal, tipo_precio_aplicado
+      ) VALUES (?, ?, ?, ?, ?, ?)
       `,
-      [venta_id, producto_id, cantidad, precio_unitario, subtotal]
+      [
+        venta_id,
+        producto_id,
+        cantidad,
+        precio_unitario,
+        subtotal,
+        tipo_precio_aplicado,
+      ]
     )
     const [result] = await connection.execute(
       'SELECT * FROM detalles_ventas WHERE id = LAST_INSERT_ID()'
@@ -156,17 +198,20 @@ const deleteVenta = fetchResultMysql(
 )
 
 const updateVenta = fetchResultMysql(
-  async ({ venta_id, estado }, connection) => {
+  async (
+    { venta_id, estado, metodo_pago_id, moneda_id, moneda, referencia_pago },
+    connection
+  ) => {
     await connection.execute(
       `
       INSERT INTO ventas (
-        empresa_id, cliente_id, usuario_id, total, estado
+        empresa_id, cliente_id, usuario_id, total, estado, metodo_pago_id, moneda_id, moneda, referencia_pago
       )
-      SELECT empresa_id, cliente_id, usuario_id, total, ?
+      SELECT empresa_id, cliente_id, usuario_id, total, ?, ?, ?, ?, ?
       FROM ventas
       WHERE id = ?
       `,
-      [estado, venta_id]
+      [estado, metodo_pago_id, moneda_id, moneda, referencia_pago, venta_id]
     )
     const [result] = await connection.execute(
       'SELECT * FROM ventas WHERE id = LAST_INSERT_ID()'
@@ -188,8 +233,8 @@ const replaceDetallesVenta = fetchResultMysql(
       await connection.execute(
         `
         INSERT INTO detalles_ventas (
-          venta_id, producto_id, cantidad, precio_unitario, subtotal
-        ) VALUES (?, ?, ?, ?, ?)
+          venta_id, producto_id, cantidad, precio_unitario, subtotal, tipo_precio_aplicado
+        ) VALUES (?, ?, ?, ?, ?, ?)
         `,
         [
           venta_id,
@@ -197,6 +242,7 @@ const replaceDetallesVenta = fetchResultMysql(
           item.cantidad,
           item.precio_unitario,
           item.subtotal,
+          item.tipo_precio_aplicado,
         ]
       )
     }
@@ -316,9 +362,9 @@ const copiarDetallesVenta = fetchResultMysql(
     connection.execute(
       `
       INSERT INTO detalles_ventas (
-        venta_id, producto_id, cantidad, precio_unitario, subtotal
+        venta_id, producto_id, cantidad, precio_unitario, subtotal, tipo_precio_aplicado
       )
-      SELECT ?, producto_id, cantidad, precio_unitario, subtotal
+      SELECT ?, producto_id, cantidad, precio_unitario, subtotal, tipo_precio_aplicado
       FROM detalles_ventas
       WHERE venta_id = ?
       `,
@@ -348,7 +394,19 @@ const updateVentaStatus = fetchResultMysql(
 
 const updateSale = fetchResultMysql(
   async (
-    { venta_id, empresa_id, cliente_id, usuario_id, total, estado, detalle },
+    {
+      venta_id,
+      empresa_id,
+      cliente_id,
+      usuario_id,
+      total,
+      estado,
+      detalle,
+      metodo_pago_id,
+      moneda_id,
+      moneda,
+      referencia_pago,
+    },
     connection
   ) => {
     await connection.execute(
@@ -358,10 +416,25 @@ const updateSale = fetchResultMysql(
           cliente_id = ?,
           usuario_id = ?,
           total = ?,
-          estado = ?
+          estado = ?,
+          metodo_pago_id = ?,
+          moneda_id = ?,
+          moneda = ?,
+          referencia_pago = ?
       WHERE id = ?
       `,
-      [empresa_id, cliente_id, usuario_id, total, estado, venta_id]
+      [
+        empresa_id,
+        cliente_id,
+        usuario_id,
+        total,
+        estado,
+        metodo_pago_id,
+        moneda_id,
+        moneda,
+        referencia_pago,
+        venta_id,
+      ]
     )
 
     // Delete existing details
@@ -374,8 +447,8 @@ const updateSale = fetchResultMysql(
       await connection.execute(
         `
         INSERT INTO detalles_ventas (
-          venta_id, producto_id, cantidad, precio_unitario, subtotal
-        ) VALUES (?, ?, ?, ?, ?)
+          venta_id, producto_id, cantidad, precio_unitario, subtotal, tipo_precio_aplicado
+        ) VALUES (?, ?, ?, ?, ?, ?)
         `,
         [
           venta_id,
@@ -383,6 +456,7 @@ const updateSale = fetchResultMysql(
           item.cantidad,
           item.precio_unitario,
           item.subtotal,
+          item.tipo_precio_aplicado,
         ]
       )
     }
