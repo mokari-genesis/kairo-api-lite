@@ -391,12 +391,33 @@ module.exports.updateStatus = async event => {
       throw new Error('Missing required fields')
     }
 
+    if (estado === 'vendido') {
+      const venta = await getVentaByIdWithPayments({ ventaId: venta_id })
+      if (!venta) return response(404, null, 'Venta no encontrada')
+      const pagos = await getVentaPayments({ ventaId: venta_id })
+      const totalPagado = pagos.reduce((s, p) => s + Number(p.monto), 0)
+      if (pagos.length === 0)
+        return response(
+          422,
+          null,
+          'No se puede marcar como vendido: la venta no tiene pagos.'
+        )
+      if (Math.abs(totalPagado - Number(venta.total)) > 0.01)
+        return response(
+          422,
+          null,
+          'No se puede marcar como vendido: la suma de pagos no coincide con el total.'
+        )
+    }
     const venta = await updateVentaStatus({ venta_id, estado })
 
     return response(200, venta, 'Venta actualizada correctamente')
   } catch (error) {
     console.log('error', error)
-    return response(400, null, error.message || 'Error')
+    const isSignal =
+      error &&
+      (error.sqlState === '45000' || error.code === 'ER_SIGNAL_EXCEPTION')
+    return response(isSignal ? 422 : 400, null, error.message || 'Error')
   }
 }
 
@@ -607,7 +628,14 @@ module.exports.createPayment = async event => {
     }
 
     // Validación: no exceder total de la venta
-    const { total } = await getVentaByIdWithPayments({ ventaId })
+    const { total, estado } = await getVentaByIdWithPayments({ ventaId })
+    if (estado === 'vendido') {
+      return response(
+        422,
+        null,
+        'No puede modificar pagos de una venta ya vendida.'
+      )
+    }
     const pagado = await sumPagosByVenta({ ventaId })
     if (Number(pagado) + Number(monto) > Number(total)) {
       throw new Error('La suma de pagos excede el total de la venta')
@@ -620,10 +648,12 @@ module.exports.createPayment = async event => {
       monto,
       referencia_pago,
     })
-    return response(200, pago, 'Pago creado correctamente')
+    return response(201, pago, 'Pago creado correctamente')
   } catch (err) {
     console.log('createPayment error', err)
-    return response(400, null, err.message || 'Error')
+    const isSignal =
+      err && (err.sqlState === '45000' || err.code === 'ER_SIGNAL_EXCEPTION')
+    return response(isSignal ? 422 : 400, null, err.message || 'Error')
   }
 }
 
@@ -635,7 +665,9 @@ module.exports.listPayments = async event => {
     return response(200, pagos, 'Done')
   } catch (err) {
     console.log('listPayments error', err)
-    return response(400, null, err.message || 'Error')
+    const isSignal =
+      err && (err.sqlState === '45000' || err.code === 'ER_SIGNAL_EXCEPTION')
+    return response(isSignal ? 422 : 400, null, err.message || 'Error')
   }
 }
 
@@ -648,7 +680,14 @@ module.exports.updatePayment = async event => {
     if (!ventaId || !paymentId) throw new Error('Missing ventaId/paymentId')
 
     // Validar no exceda el total (considerando el cambio)
-    const { total } = await getVentaByIdWithPayments({ ventaId })
+    const { total, estado } = await getVentaByIdWithPayments({ ventaId })
+    if (estado === 'vendido') {
+      return response(
+        422,
+        null,
+        'No puede modificar pagos de una venta ya vendida.'
+      )
+    }
     const pagadoSinEste = await sumPagosByVenta({
       ventaId,
       excludePaymentId: paymentId,
@@ -671,7 +710,9 @@ module.exports.updatePayment = async event => {
     return response(200, pago, 'Pago actualizado correctamente')
   } catch (err) {
     console.log('updatePayment error', err)
-    return response(400, null, err.message || 'Error')
+    const isSignal =
+      err && (err.sqlState === '45000' || err.code === 'ER_SIGNAL_EXCEPTION')
+    return response(isSignal ? 422 : 400, null, err.message || 'Error')
   }
 }
 
@@ -679,10 +720,21 @@ module.exports.deletePayment = async event => {
   try {
     const { ventaId, paymentId } = event.pathParameters || {}
     if (!ventaId || !paymentId) throw new Error('Missing ventaId/paymentId')
+    const venta = await getVentaByIdWithPayments({ ventaId })
+    if (!venta) return response(404, null, 'Venta no encontrada')
+    if (venta.estado === 'vendido') {
+      return response(
+        422,
+        null,
+        'No puede modificar pagos de una venta ya vendida.'
+      )
+    }
     const pago = await deleteVentaPayment({ id: paymentId, venta_id: ventaId })
     return response(200, pago, 'Pago eliminado correctamente')
   } catch (err) {
     console.log('deletePayment error', err)
-    return response(400, null, err.message || 'Error')
+    const isSignal =
+      err && (err.sqlState === '45000' || err.code === 'ER_SIGNAL_EXCEPTION')
+    return response(isSignal ? 422 : 400, null, err.message || 'Error')
   }
 }
