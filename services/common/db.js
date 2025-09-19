@@ -35,6 +35,24 @@ function fetchResultMysql(query, { singleResult = false } = {}) {
   }
 }
 
+function transaction(callback) {
+  return async (...args) => {
+    const connection = await mysql.createConnection(mysqlConfig)
+    try {
+      await connection.beginTransaction()
+      const result = await callback(...args, connection)
+      await connection.commit()
+      return result
+    } catch (error) {
+      await connection.rollback()
+      throw error
+    } finally {
+      await connection.end()
+    }
+  }
+}
+
 module.exports = {
   fetchResultMysql,
+  transaction,
 }

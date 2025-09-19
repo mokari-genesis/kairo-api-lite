@@ -3,6 +3,7 @@ const {
   getReporteInventarioConMetodo,
   getReporteMovimientosInventario,
   getReporteStockActual,
+  getReporteVentasConPagos,
 } = require('./storage')
 const {
   response,
@@ -67,6 +68,26 @@ module.exports.reporteStockActual = async event => {
     const { empresa_id } = queryStringParameters
 
     const reporte = await getReporteStockActual({ empresa_id })
+    return response(200, reporte, 'Done')
+  } catch (error) {
+    const message = error.message || 'Error'
+    console.log('error', error)
+    return response(400, null, message)
+  }
+}
+
+module.exports.reporteVentasConPagos = async event => {
+  try {
+    const queryStringParameters = event.queryStringParameters || {}
+    const { empresa_id, fecha_inicio, fecha_fin, estado_venta } =
+      queryStringParameters
+
+    const reporte = await getReporteVentasConPagos({
+      empresa_id,
+      fecha_inicio,
+      fecha_fin,
+      estado_venta,
+    })
     return response(200, reporte, 'Done')
   } catch (error) {
     const message = error.message || 'Error'

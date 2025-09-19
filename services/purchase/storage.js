@@ -1,5 +1,6 @@
 const {
   fetchResultMysql,
+  transaction,
 } = require(`${process.env['FILE_ENVIRONMENT']}common/db`)
 
 const getPurchases = fetchResultMysql(
@@ -470,6 +471,223 @@ const updateSale = fetchResultMysql(
   { singleResult: true }
 )
 
+// Payment functions
+const getVentaByIdWithPayments = fetchResultMysql(
+  ({ ventaId }, connection) =>
+    connection.execute(
+      `SELECT v.id, v.total, v.estado, v.empresa_id, v.cliente_id, v.usuario_id, v.fecha
+       FROM ventas v WHERE v.id = ?`,
+      [ventaId]
+    ),
+  { singleResult: true }
+)
+
+const getVentaPayments = fetchResultMysql(
+  ({ ventaId }, connection) =>
+    connection.execute(
+      `SELECT vp.id, vp.venta_id, vp.monto, vp.referencia_pago,
+              mp.id AS metodo_pago_id, mp.nombre AS metodo_pago,
+              m.id AS moneda_id, m.codigo AS moneda_codigo, m.simbolo AS moneda_simbolo,
+              vp.fecha_creacion
+       FROM ventas_pagos vp
+       JOIN metodos_pago mp ON mp.id = vp.metodo_pago_id
+       JOIN monedas m ON m.id = vp.moneda_id
+       WHERE vp.venta_id = ?
+       ORDER BY vp.id DESC`,
+      [ventaId]
+    ),
+  { singleResult: false }
+)
+
+const sumPagosByVenta = fetchResultMysql(
+  ({ ventaId, excludePaymentId }, connection) => {
+    const params = [ventaId]
+    let where = 'venta_id = ?'
+    if (excludePaymentId) {
+      where += ' AND id <> ?'
+      params.push(excludePaymentId)
+    }
+    return connection.execute(
+      `SELECT IFNULL(SUM(monto),0) AS total FROM ventas_pagos WHERE ${where}`,
+      params
+    )
+  },
+  { singleResult: true }
+)
+
+const createVentaPayment = transaction(
+  async (
+    { venta_id, metodo_pago_id, moneda_id, monto, referencia_pago },
+    connection
+  ) => {
+    // Lock the sale for consistency
+    const [venta] = await connection.execute(
+      'SELECT id, total FROM ventas WHERE id = ? FOR UPDATE',
+      [venta_id]
+    )
+    if (!venta || venta.length === 0) {
+      throw new Error('Venta no encontrada')
+    }
+
+    const [sumRow] = await connection.execute(
+      'SELECT IFNULL(SUM(monto),0) AS total FROM ventas_pagos WHERE venta_id = ?',
+      [venta_id]
+    )
+    if (Number(sumRow[0].total) + Number(monto) > Number(venta[0].total)) {
+      throw new Error('La suma de pagos excede el total de la venta')
+    }
+
+    const [result] = await connection.execute(
+      `INSERT INTO ventas_pagos (venta_id, metodo_pago_id, moneda_id, monto, referencia_pago)
+       VALUES (?,?,?,?,?)`,
+      [venta_id, metodo_pago_id, moneda_id, monto, referencia_pago]
+    )
+
+    const [inserted] = await connection.execute(
+      `SELECT vp.*, mp.nombre AS metodo_pago, m.codigo AS moneda_codigo, m.simbolo AS moneda_simbolo
+       FROM ventas_pagos vp
+       JOIN metodos_pago mp ON mp.id = vp.metodo_pago_id
+       JOIN monedas m ON m.id = vp.moneda_id
+       WHERE vp.id = ?`,
+      [result.insertId]
+    )
+    return inserted[0]
+  }
+)
+
+const updateVentaPayment = transaction(
+  async (
+    { id, venta_id, metodo_pago_id, moneda_id, monto, referencia_pago },
+    connection
+  ) => {
+    const [venta] = await connection.execute(
+      'SELECT id, total FROM ventas WHERE id = ? FOR UPDATE',
+      [venta_id]
+    )
+    if (!venta || venta.length === 0) {
+      throw new Error('Venta no encontrada')
+    }
+
+    // Sum without this payment
+    const [sumRow] = await connection.execute(
+      'SELECT IFNULL(SUM(monto),0) AS total FROM ventas_pagos WHERE venta_id = ? AND id <> ?',
+      [venta_id, id]
+    )
+    if (
+      monto != null &&
+      Number(sumRow[0].total) + Number(monto) > Number(venta[0].total)
+    ) {
+      throw new Error('La suma de pagos excede el total de la venta')
+    }
+
+    await connection.execute(
+      `UPDATE ventas_pagos
+         SET metodo_pago_id = COALESCE(?, metodo_pago_id),
+             moneda_id      = COALESCE(?, moneda_id),
+             monto          = COALESCE(?, monto),
+             referencia_pago= COALESCE(?, referencia_pago)
+       WHERE id = ? AND venta_id = ?`,
+      [metodo_pago_id, moneda_id, monto, referencia_pago, id, venta_id]
+    )
+
+    const [updated] = await connection.execute(
+      `SELECT vp.*, mp.nombre AS metodo_pago, m.codigo AS moneda_codigo, m.simbolo AS moneda_simbolo
+       FROM ventas_pagos vp
+       JOIN metodos_pago mp ON mp.id = vp.metodo_pago_id
+       JOIN monedas m ON m.id = vp.moneda_id
+       WHERE vp.id = ?`,
+      [id]
+    )
+    return updated[0]
+  }
+)
+
+const deleteVentaPayment = transaction(async ({ id, venta_id }, connection) => {
+  const [venta] = await connection.execute(
+    'SELECT id, total FROM ventas WHERE id = ? FOR UPDATE',
+    [venta_id]
+  )
+  if (!venta || venta.length === 0) {
+    throw new Error('Venta no encontrada')
+  }
+
+  // Get the record before deleting it
+  const [prev] = await connection.execute(
+    'SELECT * FROM ventas_pagos WHERE id = ? AND venta_id = ?',
+    [id, venta_id]
+  )
+  if (!prev || prev.length === 0) {
+    return []
+  }
+
+  await connection.execute(
+    'DELETE FROM ventas_pagos WHERE id = ? AND venta_id = ?',
+    [id, venta_id]
+  )
+  return prev[0]
+})
+
+// Bulk payment functions for create/update operations
+const createVentaPayments = transaction(
+  async ({ venta_id, pagos }, connection) => {
+    if (!pagos || pagos.length === 0) {
+      return []
+    }
+
+    // Validate total payments don't exceed sale total
+    const [venta] = await connection.execute(
+      'SELECT id, total FROM ventas WHERE id = ? FOR UPDATE',
+      [venta_id]
+    )
+    if (!venta || venta.length === 0) {
+      throw new Error('Venta no encontrada')
+    }
+
+    const totalPagos = pagos.reduce((sum, pago) => sum + Number(pago.monto), 0)
+    if (totalPagos > Number(venta[0].total)) {
+      throw new Error('La suma de pagos excede el total de la venta')
+    }
+
+    const createdPayments = []
+    for (const pago of pagos) {
+      const [result] = await connection.execute(
+        `INSERT INTO ventas_pagos (venta_id, metodo_pago_id, moneda_id, monto, referencia_pago)
+         VALUES (?,?,?,?,?)`,
+        [
+          venta_id,
+          pago.metodo_pago_id,
+          pago.moneda_id,
+          pago.monto,
+          pago.referencia_pago || null,
+        ]
+      )
+
+      const [inserted] = await connection.execute(
+        `SELECT vp.*, mp.nombre AS metodo_pago, m.codigo AS moneda_codigo, m.simbolo AS moneda_simbolo
+         FROM ventas_pagos vp
+         JOIN metodos_pago mp ON mp.id = vp.metodo_pago_id
+         JOIN monedas m ON m.id = vp.moneda_id
+         WHERE vp.id = ?`,
+        [result.insertId]
+      )
+      createdPayments.push(inserted[0])
+    }
+    return createdPayments
+  }
+)
+
+const getVentaWithPayments = fetchResultMysql(
+  ({ ventaId }, connection) =>
+    connection.execute(
+      `SELECT v.*, 
+              (SELECT IFNULL(SUM(vp.monto),0) FROM ventas_pagos vp WHERE vp.venta_id = v.id) AS monto_pagado,
+              (v.total - (SELECT IFNULL(SUM(vp.monto),0) FROM ventas_pagos vp WHERE vp.venta_id = v.id)) AS saldo
+       FROM ventas v WHERE v.id = ?`,
+      [ventaId]
+    ),
+  { singleResult: true }
+)
+
 module.exports = {
   getPurchases,
   createVenta,
@@ -486,4 +704,13 @@ module.exports = {
   copiarDetallesVenta,
   updateVentaStatus,
   updateSale,
+  // Payment functions
+  getVentaByIdWithPayments,
+  getVentaPayments,
+  sumPagosByVenta,
+  createVentaPayment,
+  updateVentaPayment,
+  deleteVentaPayment,
+  createVentaPayments,
+  getVentaWithPayments,
 }
