@@ -47,7 +47,7 @@ const getPurchases = fetchResultMysql(
           OR 
           (DATE(fecha_venta) BETWEEN ? AND ?)          
         )
-          AND (? IS NULL OR metodo_pago = ?)        
+          AND (? IS NULL OR metodos_pago = ?)        
       ORDER BY fecha_venta DESC
       `,
       [
@@ -108,31 +108,18 @@ const createVenta = fetchResultMysql(
       cliente_id,
       usuario_id,
       total,
-      estado = 'generado',
-      metodo_pago_id,
-      moneda_id,
-      moneda,
-      referencia_pago,
+      estado = 'vendido',
+      comentario,
     },
     connection
   ) => {
     await connection.execute(
       `
       INSERT INTO ventas (
-        empresa_id, cliente_id, usuario_id, total, estado, metodo_pago_id, moneda_id, moneda, referencia_pago
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        empresa_id, cliente_id, usuario_id, total, estado, moneda_id, comentario
+      ) VALUES (?, ?, ?, ?, ?, 1, ?)
       `,
-      [
-        empresa_id,
-        cliente_id,
-        usuario_id,
-        total,
-        estado,
-        metodo_pago_id,
-        moneda_id,
-        moneda,
-        referencia_pago,
-      ]
+      [empresa_id, cliente_id, usuario_id, total, estado, comentario || null]
     )
     const [result] = await connection.execute(
       'SELECT * FROM ventas WHERE id = LAST_INSERT_ID()'
@@ -199,20 +186,17 @@ const deleteVenta = fetchResultMysql(
 )
 
 const updateVenta = fetchResultMysql(
-  async (
-    { venta_id, estado, metodo_pago_id, moneda_id, moneda, referencia_pago },
-    connection
-  ) => {
+  async ({ venta_id, estado }, connection) => {
     await connection.execute(
       `
       INSERT INTO ventas (
-        empresa_id, cliente_id, usuario_id, total, estado, metodo_pago_id, moneda_id, moneda, referencia_pago
+        empresa_id, cliente_id, usuario_id, total, estado, moneda_id, comentario
       )
-      SELECT empresa_id, cliente_id, usuario_id, total, ?, ?, ?, ?, ?
+      SELECT empresa_id, cliente_id, usuario_id, total, ?, moneda_id, comentario
       FROM ventas
       WHERE id = ?
       `,
-      [estado, metodo_pago_id, moneda_id, moneda, referencia_pago, venta_id]
+      [estado, venta_id]
     )
     const [result] = await connection.execute(
       'SELECT * FROM ventas WHERE id = LAST_INSERT_ID()'
@@ -395,19 +379,7 @@ const updateVentaStatus = fetchResultMysql(
 
 const updateSale = fetchResultMysql(
   async (
-    {
-      venta_id,
-      empresa_id,
-      cliente_id,
-      usuario_id,
-      total,
-      estado,
-      detalle,
-      metodo_pago_id,
-      moneda_id,
-      moneda,
-      referencia_pago,
-    },
+    { venta_id, empresa_id, cliente_id, usuario_id, total, estado, detalle },
     connection
   ) => {
     await connection.execute(
@@ -417,25 +389,10 @@ const updateSale = fetchResultMysql(
           cliente_id = ?,
           usuario_id = ?,
           total = ?,
-          estado = ?,
-          metodo_pago_id = ?,
-          moneda_id = ?,
-          moneda = ?,
-          referencia_pago = ?
+          estado = ?
       WHERE id = ?
       `,
-      [
-        empresa_id,
-        cliente_id,
-        usuario_id,
-        total,
-        estado,
-        metodo_pago_id,
-        moneda_id,
-        moneda,
-        referencia_pago,
-        venta_id,
-      ]
+      [empresa_id, cliente_id, usuario_id, total, estado, venta_id]
     )
 
     // Delete existing details
@@ -485,10 +442,10 @@ const getVentaByIdWithPayments = fetchResultMysql(
 const getVentaPayments = fetchResultMysql(
   ({ ventaId }, connection) =>
     connection.execute(
-      `SELECT vp.id, vp.venta_id, vp.monto, vp.referencia_pago,
+      `SELECT vp.id, vp.venta_id, vp.monto, vp.referencia,
               mp.id AS metodo_pago_id, mp.nombre AS metodo_pago,
               m.id AS moneda_id, m.codigo AS moneda_codigo, m.simbolo AS moneda_simbolo,
-              vp.fecha_creacion
+              vp.fecha
        FROM ventas_pagos vp
        JOIN metodos_pago mp ON mp.id = vp.metodo_pago_id
        JOIN monedas m ON m.id = vp.moneda_id
@@ -538,9 +495,15 @@ const createVentaPayment = transaction(
     }
 
     const [result] = await connection.execute(
-      `INSERT INTO ventas_pagos (venta_id, metodo_pago_id, moneda_id, monto, referencia_pago)
+      `INSERT INTO ventas_pagos (venta_id, metodo_pago_id, moneda_id, monto, referencia)
        VALUES (?,?,?,?,?)`,
-      [venta_id, metodo_pago_id, moneda_id, monto, referencia_pago]
+      [
+        venta_id,
+        metodo_pago_id || null,
+        moneda_id || null,
+        monto || null,
+        referencia_pago || null,
+      ]
     )
 
     const [inserted] = await connection.execute(
@@ -585,9 +548,16 @@ const updateVentaPayment = transaction(
          SET metodo_pago_id = COALESCE(?, metodo_pago_id),
              moneda_id      = COALESCE(?, moneda_id),
              monto          = COALESCE(?, monto),
-             referencia_pago= COALESCE(?, referencia_pago)
+             referencia = COALESCE(?, referencia)
        WHERE id = ? AND venta_id = ?`,
-      [metodo_pago_id, moneda_id, monto, referencia_pago, id, venta_id]
+      [
+        metodo_pago_id || null,
+        moneda_id || null,
+        monto || null,
+        referencia_pago || null,
+        id,
+        venta_id,
+      ]
     )
 
     const [updated] = await connection.execute(
@@ -651,13 +621,13 @@ const createVentaPayments = transaction(
     const createdPayments = []
     for (const pago of pagos) {
       const [result] = await connection.execute(
-        `INSERT INTO ventas_pagos (venta_id, metodo_pago_id, moneda_id, monto, referencia_pago)
+        `INSERT INTO ventas_pagos (venta_id, metodo_pago_id, moneda_id, monto, referencia)
          VALUES (?,?,?,?,?)`,
         [
           venta_id,
-          pago.metodo_pago_id,
-          pago.moneda_id,
-          pago.monto,
+          pago.metodo_pago_id || null,
+          pago.moneda_id || null,
+          pago.monto || null,
           pago.referencia_pago || null,
         ]
       )
