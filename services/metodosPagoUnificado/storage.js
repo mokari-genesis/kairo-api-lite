@@ -198,6 +198,7 @@ const getMetodosPagoUnificadoResumen = fetchResultMysql(
         AND (? IS NULL OR fecha_venta_dia <= ?)
         AND (? IS NULL OR fecha_pago_dia >= ?)
         AND (? IS NULL OR fecha_pago_dia <= ?)
+        AND estado_venta = 'vendido'
       GROUP BY ${groupByClause}
       ORDER BY total_monto_pagado DESC
       `,
