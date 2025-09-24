@@ -183,7 +183,8 @@ const getMetodosPagoUnificadoResumen = fetchResultMysql(
         COUNT(DISTINCT CASE WHEN venta_es_vendida_bool = 0 THEN venta_id END) as ventas_pendientes,
         moneda_codigo,
         moneda_nombre,
-        moneda_simbolo
+        moneda_simbolo,
+        estado_venta
       FROM vista_metodos_pago_unificado
       WHERE (? IS NULL OR empresa_id = ?)
         AND (? IS NULL OR cliente_id = ?)

@@ -11,7 +11,6 @@ const {
 module.exports.getMetodosPagoUnificado = async event => {
   try {
     const queryStringParameters = event.queryStringParameters || {}
-    console.log('🟧 queryStringParameters >>> ', queryStringParameters)
     const {
       empresa_id,
       venta_id,
