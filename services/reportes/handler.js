@@ -65,9 +65,25 @@ module.exports.reporteMovimientosInventario = async event => {
 module.exports.reporteStockActual = async event => {
   try {
     const queryStringParameters = event.queryStringParameters || {}
-    const { empresa_id } = queryStringParameters
+    const {
+      empresa_id,
+      codigo,
+      serie,
+      descripcion,
+      categoria,
+      proveedor_nombre,
+      proveedor_tipo,
+    } = queryStringParameters
 
-    const reporte = await getReporteStockActual({ empresa_id })
+    const reporte = await getReporteStockActual({
+      empresa_id,
+      codigo,
+      serie,
+      descripcion,
+      categoria,
+      proveedor_nombre,
+      proveedor_tipo,
+    })
     return response(200, reporte, 'Done')
   } catch (error) {
     const message = error.message || 'Error'

@@ -130,14 +130,46 @@ const getReporteMovimientosInventario = fetchResultMysql(
 )
 
 const getReporteStockActual = fetchResultMysql(
-  ({ empresa_id }, connection) =>
+  (
+    {
+      empresa_id,
+      codigo,
+      serie,
+      descripcion,
+      categoria,
+      proveedor_nombre,
+      proveedor_tipo,
+    },
+    connection
+  ) =>
     connection.execute(
       `
       SELECT * FROM reporte_stock_actual
       WHERE (? IS NULL OR empresa_id = ?)
+        AND (? IS NULL OR codigo = ?)
+        AND (? IS NULL OR serie = ?)
+        AND (? IS NULL OR descripcion LIKE ?)
+        AND (? IS NULL OR categoria = ?)
+        AND (? IS NULL OR proveedor_nombre LIKE ?)
+        AND (? IS NULL OR proveedor_tipo = ?)
       ORDER BY empresa, descripcion
       `,
-      [empresa_id || null, empresa_id || null]
+      [
+        empresa_id || null,
+        empresa_id || null,
+        codigo || null,
+        codigo || null,
+        serie || null,
+        serie || null,
+        descripcion || null,
+        descripcion ? `%${descripcion}%` : null,
+        categoria || null,
+        categoria || null,
+        proveedor_nombre || null,
+        proveedor_nombre ? `%${proveedor_nombre}%` : null,
+        proveedor_tipo || null,
+        proveedor_tipo || null,
+      ]
     ),
   { singleResult: false }
 )

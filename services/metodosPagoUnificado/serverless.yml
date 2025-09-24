@@ -1,0 +1,50 @@
+service: kairo-lite-api-pu
+frameworkVersion: '3'
+
+plugins:
+  - serverless-offline
+custom:
+  config: ../../envs/credentials.${self:provider.stage}.json
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'prod'}
+  region: us-east-1
+  environment:
+    STAGE: ${file(${self:custom.config}):stage}
+    FILE_ENVIRONMENT: ${file(${self:custom.config}):fileEnvironment}
+    RUN_LIKE: ${file(${self:custom.config}):run_like}
+    DATABASE_HOST: ${file(${self:custom.config}):dbHost}
+    DATABASE_USER: ${file(${self:custom.config}):dbUser}
+    DATABASE_NAME: ${file(${self:custom.config}):dbName}
+    DATABASE_PASSWORD: ${file(${self:custom.config}):dbPassword}
+    AWS_POOL_ID: ${file(${self:custom.config}):awsPoolId}
+
+package:
+  include:
+    - ../libs/**
+    - ../common/**
+  exclude:
+    - node_modules/**
+
+functions:
+  getMetodosPagoUnificado:
+    handler: handler.getMetodosPagoUnificado
+    events:
+      - http:
+          path: metodos-pago-unificado
+          method: get
+          cors: true
+    layers:
+      - arn:${file(${self:custom.config}):layer}
+
+  getMetodosPagoUnificadoResumen:
+    handler: handler.getMetodosPagoUnificadoResumen
+    events:
+      - http:
+          path: metodos-pago-unificado/resumen
+          method: get
+          cors: true
+    layers:
+      - arn:${file(${self:custom.config}):layer}
