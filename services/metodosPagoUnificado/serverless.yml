@@ -1,4 +1,4 @@
-service: kairo-lite-api-reportes
+service: kairo-lite-api-pu
 frameworkVersion: '3'
 
 plugins:
@@ -10,7 +10,7 @@ provider:
   name: aws
   runtime: nodejs20.x
   stage: ${opt:stage, 'prod'}
-  region: ${opt:region, 'us-east-1'}
+  region: us-east-1
   environment:
     STAGE: ${file(${self:custom.config}):stage}
     FILE_ENVIRONMENT: ${file(${self:custom.config}):fileEnvironment}
@@ -29,41 +29,21 @@ package:
     - node_modules/**
 
 functions:
-  reporteInventarioConMetodo:
-    handler: handler.reporteInventarioConMetodo
+  getMetodosPagoUnificado:
+    handler: handler.getMetodosPagoUnificado
     events:
       - http:
-          path: reportes/inventario-con-metodo
+          path: metodos-pago-unificado
           method: get
           cors: true
     layers:
       - arn:${file(${self:custom.config}):layer}
 
-  reporteMovimientosInventario:
-    handler: handler.reporteMovimientosInventario
+  getMetodosPagoUnificadoResumen:
+    handler: handler.getMetodosPagoUnificadoResumen
     events:
       - http:
-          path: reportes/movimientos-inventario
-          method: get
-          cors: true
-    layers:
-      - arn:${file(${self:custom.config}):layer}
-
-  reporteStockActual:
-    handler: handler.reporteStockActual
-    events:
-      - http:
-          path: reportes/stock-actual
-          method: get
-          cors: true
-    layers:
-      - arn:${file(${self:custom.config}):layer}
-
-  reporteVentasConPagos:
-    handler: handler.reporteVentasConPagos
-    events:
-      - http:
-          path: reportes/ventas-con-pagos
+          path: metodos-pago-unificado/resumen
           method: get
           cors: true
     layers:
