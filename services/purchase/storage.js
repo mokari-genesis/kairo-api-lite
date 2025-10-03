@@ -442,10 +442,19 @@ const getVentaByIdWithPayments = fetchResultMysql(
 const getVentaPayments = fetchResultMysql(
   ({ ventaId }, connection) =>
     connection.execute(
-      `SELECT vp.id, vp.venta_id, vp.monto, vp.referencia,
-              mp.id AS metodo_pago_id, mp.nombre AS metodo_pago,
-              m.id AS moneda_id, m.codigo AS moneda_codigo, m.simbolo AS moneda_simbolo,
-              vp.fecha
+      `SELECT 
+       vp.id,
+       vp.venta_id,
+       m.id AS moneda_id,
+       m.codigo AS moneda_codigo,
+       m.simbolo AS moneda_simbolo,
+       vp.monto,
+       vp.tasa_cambio,
+       vp.monto_en_moneda_venta,
+       mp.nombre AS metodo_pago,
+       mp.id AS metodo_pago_id,
+       vp.referencia,
+       vp.fecha
        FROM ventas_pagos vp
        JOIN metodos_pago mp ON mp.id = vp.metodo_pago_id
        JOIN monedas m ON m.id = vp.moneda_id

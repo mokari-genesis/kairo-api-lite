@@ -17,15 +17,33 @@ const getMonedas = fetchResultMysql(
 
 const createMoneda = fetchResultMysql(
   async (
-    { codigo, nombre, simbolo, decimales = 2, activo = true },
+    {
+      codigo,
+      nombre,
+      simbolo,
+      decimales = 2,
+      activo = true,
+      es_base = 0,
+      tasa_vs_base,
+      tasa_actualizada,
+    },
     connection
   ) => {
     await connection.execute(
       `
-      INSERT INTO monedas (codigo, nombre, simbolo, decimales, activo)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO monedas (codigo, nombre, simbolo, decimales, activo,es_base,tasa_vs_base,tasa_actualizada)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `,
-      [codigo, nombre, simbolo, decimales, activo]
+      [
+        codigo,
+        nombre,
+        simbolo,
+        decimales,
+        activo,
+        es_base,
+        tasa_vs_base,
+        tasa_actualizada,
+      ]
     )
     const [result] = await connection.execute(
       'SELECT * FROM monedas WHERE id = LAST_INSERT_ID()'
@@ -36,7 +54,20 @@ const createMoneda = fetchResultMysql(
 )
 
 const updateMoneda = fetchResultMysql(
-  async ({ id, codigo, nombre, simbolo, decimales, activo }, connection) => {
+  async (
+    {
+      id,
+      codigo,
+      nombre,
+      simbolo,
+      decimales,
+      activo,
+      es_base = 0,
+      tasa_vs_base,
+      tasa_actualizada,
+    },
+    connection
+  ) => {
     await connection.execute(
       `
       UPDATE monedas 
@@ -44,10 +75,23 @@ const updateMoneda = fetchResultMysql(
           nombre = COALESCE(?, nombre),
           simbolo = COALESCE(?, simbolo),
           decimales = COALESCE(?, decimales),
-          activo = COALESCE(?, activo)
+          activo = COALESCE(?, activo),
+          es_base = COALESCE(?, es_base),
+          tasa_vs_base = COALESCE(?, tasa_vs_base),
+          tasa_actualizada = COALESCE(?, tasa_actualizada)
       WHERE id = ?
       `,
-      [codigo, nombre, simbolo, decimales, activo, id]
+      [
+        codigo,
+        nombre,
+        simbolo,
+        decimales,
+        activo,
+        es_base,
+        tasa_vs_base,
+        tasa_actualizada,
+        id,
+      ]
     )
     const [result] = await connection.execute(
       'SELECT * FROM monedas WHERE id = ?',

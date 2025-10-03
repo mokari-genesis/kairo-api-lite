@@ -26,44 +26,14 @@ const getMetodosPagoUnificado = fetchResultMysql(
     return connection.execute(
       `
       SELECT 
-        empresa_id,
-        empresa_nombre,
-        venta_id,
-        fecha_venta,
-        fecha_venta_dia,
-        estado_venta,
-        estado_pago,
-        total_venta,
-        moneda_id,
-        moneda_codigo,
-        moneda_nombre,
-        moneda_simbolo,
-        comentario_venta,
-        cliente_id,
-        cliente_nombre,
-        cliente_telefono,
-        cliente_email,
-        usuario_id,
-        usuario_nombre,
-        pago_id,
-        metodo_pago_id,
-        metodo_pago,
-        monto_pago,
-        referencia_pago,
-        fecha_pago,
-        fecha_pago_dia,
-        total_pagado_venta,
-        cantidad_pagos_venta,
-        total_por_metodo_en_venta,
-        saldo_pendiente_venta,
-        venta_es_vendida_bool
+        *
       FROM vista_metodos_pago_unificado
       WHERE (? IS NULL OR empresa_id = ?)
         AND (? IS NULL OR venta_id = ?)
         AND (? IS NULL OR cliente_id = ?)
         AND (? IS NULL OR usuario_id = ?)
         AND (? IS NULL OR metodo_pago_id = ?)
-        AND (? IS NULL OR moneda_id = ?)
+        AND (? IS NULL OR moneda_pago_id = ?)
         AND (? IS NULL OR estado_venta = ?)
         AND (? IS NULL OR estado_pago = ?)
         AND (? IS NULL OR venta_es_vendida_bool = ?)
@@ -147,9 +117,9 @@ const getMetodosPagoUnificadoResumen = fetchResultMysql(
           'usuario_id, usuario_nombre as grupo_nombre, NULL as metodo_pago'
         break
       case 'moneda':
-        groupByClause = 'moneda_id, moneda_codigo'
+        groupByClause = 'moneda_pago_id, moneda_pago_codigo'
         selectFields =
-          'moneda_id, moneda_codigo as grupo_nombre, NULL as metodo_pago'
+          'moneda_pago_id, moneda_pago_codigo as grupo_nombre, NULL as metodo_pago'
         break
       case 'fecha_venta_dia':
         groupByClause = 'fecha_venta_dia'
@@ -176,21 +146,23 @@ const getMetodosPagoUnificadoResumen = fetchResultMysql(
         AVG(monto_pago) as promedio_monto_pago,
         MIN(monto_pago) as monto_minimo,
         MAX(monto_pago) as monto_maximo,
-        SUM(total_por_metodo_en_venta) as total_ventas_monto,
+        SUM(monto_pago_convertido) as total_ventas_monto,
         AVG(total_venta) as promedio_venta,
         SUM(saldo_pendiente_venta) as total_saldo_pendiente,
         COUNT(DISTINCT CASE WHEN venta_es_vendida_bool = 1 THEN venta_id END) as ventas_completadas,
         COUNT(DISTINCT CASE WHEN venta_es_vendida_bool = 0 THEN venta_id END) as ventas_pendientes,
-        moneda_codigo,
-        moneda_nombre,
-        moneda_simbolo,
-        estado_venta
+        moneda_pago_codigo,
+        moneda_pago_nombre,
+        moneda_pago_simbolo,
+        estado_venta,
+        monto_pago_convertido,
+        tasa_cambio_aplicada
       FROM vista_metodos_pago_unificado
       WHERE (? IS NULL OR empresa_id = ?)
         AND (? IS NULL OR cliente_id = ?)
         AND (? IS NULL OR usuario_id = ?)
         AND (? IS NULL OR metodo_pago_id = ?)
-        AND (? IS NULL OR moneda_id = ?)
+        AND (? IS NULL OR moneda_pago_id = ?)
         AND (? IS NULL OR estado_venta = ?)
         AND (? IS NULL OR estado_pago = ?)
         AND (? IS NULL OR venta_es_vendida_bool = ?)
