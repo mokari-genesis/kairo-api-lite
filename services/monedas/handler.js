@@ -13,18 +13,30 @@ const {
 module.exports.create = async event => {
   try {
     const body = getBody(event)
-    const { codigo, nombre, simbolo, decimales = 2, activo = true } = body
+    const {
+      codigo,
+      nombre,
+      simbolo,
+      decimales = 2,
+      activo = true,
+      es_base = 0,
+      tasa_vs_base,
+      tasa_actualizada,
+    } = body
 
     if (!codigo || !nombre) {
       throw new Error('Missing required fields: codigo and nombre are required')
     }
 
     const moneda = await createMoneda({
+      activo,
       codigo,
+      decimales,
       nombre,
       simbolo,
-      decimales,
-      activo,
+      es_base,
+      tasa_vs_base,
+      tasa_actualizada,
     })
     return response(200, moneda, 'Moneda creada correctamente')
   } catch (error) {
@@ -51,7 +63,17 @@ module.exports.read = async event => {
 module.exports.update = async event => {
   try {
     const body = getBody(event)
-    const { id, codigo, nombre, simbolo, decimales, activo } = body
+    const {
+      id,
+      codigo,
+      nombre,
+      simbolo,
+      decimales,
+      activo,
+      es_base,
+      tasa_vs_base,
+      tasa_actualizada,
+    } = body
 
     if (!id) {
       throw new Error('Missing required fields: id is required')
@@ -64,6 +86,9 @@ module.exports.update = async event => {
       simbolo,
       decimales,
       activo,
+      es_base,
+      tasa_vs_base,
+      tasa_actualizada,
     })
 
     if (moneda && moneda.length === 0) {

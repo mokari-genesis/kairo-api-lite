@@ -156,7 +156,7 @@ module.exports.create = async event => {
 
       // Validar que la suma de pagos sea igual al total
       const totalPagos = pagos.reduce(
-        (sum, pago) => sum + Number(pago.monto),
+        (sum, pago) => sum + Number(pago.monto_en_moneda_venta),
         0
       )
       if (Math.abs(totalPagos - Number(total)) > 0.01) {
@@ -284,7 +284,7 @@ module.exports.update = async event => {
       }
 
       const totalPagos = pagos.reduce(
-        (sum, pago) => sum + Number(pago.monto),
+        (sum, pago) => sum + Number(pago.monto_en_moneda_venta),
         0
       )
       if (Math.abs(totalPagos - Number(ventaActual.total)) > 0.01) {
@@ -450,7 +450,7 @@ module.exports.updateSale = async event => {
 
       // Validar que la suma de pagos sea igual al total
       const totalPagos = pagos.reduce(
-        (sum, pago) => sum + Number(pago.monto),
+        (sum, pago) => sum + Number(pago.monto_en_moneda_venta),
         0
       )
       if (Math.abs(totalPagos - Number(total)) > 0.01) {
